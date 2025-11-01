@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cấu Hình - Farm365</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        header { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 20px; text-align: center; }
+        h1 { font-size: 1.8em; margin-bottom: 10px; }
+        .nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 15px; background: #f5f5f5; }
+        .nav a { text-decoration: none; padding: 10px 20px; background: #4CAF50; color: white; border-radius: 25px; transition: all 0.3s; font-size: 0.9em; }
+        .nav a:hover { background: #45a049; }
+        .nav a.active { background: #2e7d32; }
+        .content { padding: 15px; }
+        .section { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 10px; border: 2px solid #e0e0e0; }
+        .section h3 { color: #2e7d32; margin-bottom: 15px; font-size: 1.3em; }
+        .form-row { display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 1em; }
+        .form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 1.1em; }
+        .form-group input:focus { border-color: #4CAF50; outline: none; }
+        .btn { padding: 14px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: all 0.3s; margin-top: 10px; width: 100%; }
+        .btn-primary { background: #4CAF50; color: white; }
+        .btn-primary:hover { background: #45a049; }
+        .btn-secondary { background: #2196F3; color: white; margin-left: 0; margin-top: 10px; }
+        .btn-secondary:hover { background: #0b7dda; }
+        .info-box { background: #e3f2fd; padding: 12px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #2196F3; font-size: 0.9em; }
+        .alert { padding: 12px; margin-bottom: 15px; border-radius: 5px; background: #fff3cd; border: 1px solid #ffc107; font-size: 0.9em; }
+        
+        /* Desktop styles */
+        @media (min-width: 768px) {
+            body { padding: 20px; }
+            h1 { font-size: 2.5em; }
+            header { padding: 30px; }
+            .content { padding: 30px; }
+            .section { padding: 20px; margin-bottom: 30px; }
+            .form-row { grid-template-columns: 1fr 1fr; gap: 20px; }
+            .btn { width: auto; padding: 12px 30px; font-size: 1em; }
+            .btn-secondary { margin-left: 10px; margin-top: 20px; }
+            .nav a { padding: 12px 30px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Cấu Hình Hệ Thống</h1>
+            <p>Thiết Lập Thông Số Điều Khiển</p>
+        </header>
+        <nav class="nav">
+            <a href="/">Trang chủ</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/config" class="active">Cấu Hình</a>
+            <a href="/manual">Điều Khiển</a>
+            <a href="/calibration">Hiệu Chuẩn</a>
+        </nav>
+        <div class="content">
+            <div class="alert">
+                ⚠️ Lưu ý: Thay đổi cấu hình sẽ ảnh hưởng ngay lập tức đến hoạt động hệ thống. Vui lòng kiểm tra kỹ trước khi lưu.
+            </div>
+            
+            <form id="configForm" method="POST">
+                <div class="section">
+                    <h3>🔄 Lịch Bơm Tuần Hoàn (Ngày/Đêm)</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>⏰ Giờ bắt đầu ban ngày</label>
+                            <input type="number" name="lightStart" value="6" min="0" max="23" required>
+                        </div>
+                        <div class="form-group">
+                            <label>🌙 Giờ bắt đầu ban đêm</label>
+                            <input type="number" name="lightEnd" value="18" min="0" max="23" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>☀️ BƠM (phút) - Ban ngày</label>
+                            <input type="number" name="loopOnDay" value="15" min="1" max="60" required>
+                        </div>
+                        <div class="form-group">
+                            <label>☀️ NGHỈ (phút) - Ban ngày</label>
+                            <input type="number" name="loopOffDay" value="45" min="1" max="120" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>🌙 BƠM (phút) - Ban đêm</label>
+                            <input type="number" name="loopOnNight" value="10" min="1" max="60" required>
+                        </div>
+                        <div class="form-group">
+                            <label>🌙 NGHỈ (phút) - Ban đêm</label>
+                            <input type="number" name="loopOffNight" value="50" min="1" max="120" required>
+                        </div>
+                    </div>
+                    <div class="info-box">
+                        <strong>💡 Gợi ý:</strong> Ban ngày (6h-18h): 15/45 phút | Ban đêm (18h-6h): 10/50 phút. Cây cần ít oxy hơn khi không có ánh sáng.
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>⚖️ Cài Đặt TDS (Dinh Dưỡng)</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Mục Tiêu TDS (ppm)</label>
+                            <input type="number" name="tdsTarget" value="800" min="100" max="3000" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Hysteresis (ppm)</label>
+                            <input type="number" name="tdsHyst" value="50" min="10" max="200" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Thời Gian Bơm (ms)</label>
+                            <input type="number" name="tdsDose" value="700" min="100" max="5000" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Lockout Giữa Các Lần (giây)</label>
+                            <input type="number" name="tdsLock" value="90" min="30" max="300" required>
+                        </div>
+                    </div>
+                    <div class="info-box">
+                        <strong>💡 Gợi ý:</strong> Hysteresis tránh dao động liên tục. Lockout 90s giúp dung dịch hòa tan kỹ.
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h3>🧪 Cài Đặt pH</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Mục Tiêu pH</label>
+                            <input type="number" step="0.1" name="phTarget" value="6.0" min="4.0" max="8.0" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Hysteresis (pH)</label>
+                            <input type="number" step="0.1" name="phHyst" value="0.3" min="0.1" max="1.0" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Thời Gian Bơm (ms)</label>
+                            <input type="number" name="phDose" value="300" min="100" max="5000" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Lockout Giữa Các Lần (giây)</label>
+                            <input type="number" name="phLock" value="90" min="30" max="300" required>
+                        </div>
+                    </div>
+                    <div class="info-box">
+                        <strong>💡 Gợi ý:</strong> pH lý tưởng cho thủy canh: 5.5-6.5. Dùng chất làm giảm pH từ từ.
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary">💾 Lưu Cấu Hình</button>
+                    <button type="button" class="btn btn-secondary" onclick="location.reload()">🔄 Tải Lại</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        // Load config hiện tại khi trang load
+        window.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/config')
+                .then(response => response.json())
+                .then(config => {
+                    document.querySelector('[name="loopOnDay"]').value = config.loopOnDay;
+                    document.querySelector('[name="loopOffDay"]').value = config.loopOffDay;
+                    document.querySelector('[name="loopOnNight"]').value = config.loopOnNight;
+                    document.querySelector('[name="loopOffNight"]').value = config.loopOffNight;
+                    document.querySelector('[name="lightStart"]').value = config.lightStart;
+                    document.querySelector('[name="lightEnd"]').value = config.lightEnd;
+                    document.querySelector('[name="tdsTarget"]').value = config.tdsTarget;
+                    document.querySelector('[name="tdsHyst"]').value = config.tdsHyst;
+                    document.querySelector('[name="tdsDose"]').value = config.tdsDose;
+                    document.querySelector('[name="tdsLock"]').value = config.tdsLock;
+                    document.querySelector('[name="phTarget"]').value = config.phTarget;
+                    document.querySelector('[name="phHyst"]').value = config.phHyst;
+                    document.querySelector('[name="phDose"]').value = config.phDose;
+                    document.querySelector('[name="phLock"]').value = config.phLock;
+                })
+                .catch(error => console.error('Lỗi load config:', error));
+        });
+
+        document.getElementById('configForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch('/config', {
+                method: 'POST',
+                body: new FormData(this)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    alert('✅ Cấu hình đã được lưu thành công!');
+                    location.reload(); // Reload để hiện giá trị mới
+                } else {
+                    alert('❌ Lỗi khi lưu cấu hình');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Lỗi kết nối');
+            });
+        });
+    </script>
+</body>
+</html>
+
+
+
+

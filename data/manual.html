@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều Khiển Thủ Công - Farm365</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        header { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 20px; text-align: center; }
+        h1 { font-size: 1.8em; margin-bottom: 10px; }
+        .nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 15px; background: #f5f5f5; }
+        .nav a { text-decoration: none; padding: 10px 20px; background: #4CAF50; color: white; border-radius: 25px; transition: all 0.3s; font-size: 0.9em; }
+        .nav a:hover { background: #45a049; }
+        .nav a.active { background: #2e7d32; }
+        .content { padding: 15px; }
+        .mode-selector { text-align: center; margin-bottom: 20px; }
+        .mode-btn { padding: 14px 30px; margin: 5px; border: none; border-radius: 25px; cursor: pointer; font-size: 1.1em; font-weight: bold; transition: all 0.3s; }
+        .mode-auto { background: #2196F3; color: white; }
+        .mode-auto:hover { background: #0b7dda; }
+        .mode-manual { background: #4CAF50; color: white; }
+        .mode-manual:hover { background: #45a049; }
+        .mode-active { box-shadow: 0 0 15px rgba(0,0,0,0.3); }
+        .pump-control { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; }
+        .pump-card { background: #f9f9f9; border: 2px solid #ddd; border-radius: 15px; padding: 15px; text-align: center; }
+        .pump-card h3 { color: #2e7d32; margin-bottom: 12px; font-size: 1.1em; }
+        .pump-toggle { width: 70px; height: 70px; border-radius: 50%; border: none; font-size: 1.8em; cursor: pointer; transition: all 0.3s; margin: 8px; }
+        .pump-on { background: #4CAF50; color: white; }
+        .pump-on:hover { background: #45a049; }
+        .pump-off { background: #ccc; color: white; }
+        .pump-off:hover { background: #999; }
+        .pump-disabled { opacity: 0.5; pointer-events: none; }
+        .info-box { background: #e3f2fd; padding: 12px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #2196F3; font-size: 0.9em; }
+        .warning-box { background: #fff3cd; padding: 12px; border-radius: 5px; border-left: 4px solid #ffc107; font-size: 0.9em; }
+        
+        /* Desktop styles */
+        @media (min-width: 768px) {
+            body { padding: 20px; }
+            h1 { font-size: 2.5em; }
+            header { padding: 30px; }
+            .content { padding: 30px; }
+            .mode-selector { margin-bottom: 30px; }
+            .mode-btn { padding: 15px 40px; margin: 0 10px; font-size: 1.2em; }
+            .pump-control { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px; }
+            .pump-card { padding: 20px; }
+            .pump-card h3 { margin-bottom: 15px; }
+            .pump-toggle { width: 80px; height: 80px; font-size: 2em; margin: 10px; }
+            .info-box, .warning-box { padding: 15px; }
+            .nav a { padding: 12px 30px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎛️ Điều Khiển Thủ Công</h1>
+            <p>Bật/Tắt Bơm Bằng Tay</p>
+        </header>
+        <nav class="nav">
+            <a href="/">Trang chủ</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/config">Cấu Hình</a>
+            <a href="/manual" class="active">Điều Khiển</a>
+            <a href="/calibration">Hiệu Chuẩn</a>
+        </nav>
+        <div class="content">
+            <div class="mode-selector">
+                <button class="mode-btn mode-auto" id="btnAuto" onclick="switchMode('auto')">🤖 Chế Độ TỰ ĐỘNG</button>
+                <button class="mode-btn mode-manual" id="btnManual" onclick="switchMode('manual')">✋ Chế Độ THỦ CÔNG</button>
+            </div>
+
+            <div id="autoMode" class="warning-box">
+                <strong>🤖 Chế Độ Tự Động:</strong> Hệ thống sẽ tự động điều khiển tất cả các bơm theo cấu hình đã đặt. Bạn có thể theo dõi trên Dashboard.
+            </div>
+
+            <div id="manualMode" style="display: none;">
+                <div class="pump-control">
+                    <div class="pump-card">
+                        <h3>🔄 Bơm Tuần Hoàn</h3>
+                        <button class="pump-toggle pump-off" id="toggle0" onclick="togglePump(0)">
+                            🔵
+                        </button>
+                        <p id="status0">TẮT</p>
+                    </div>
+
+                    <div class="pump-card">
+                        <h3>⚖️ Bơm A (Dinh Dưỡng)</h3>
+                        <button class="pump-toggle pump-off" id="toggle1" onclick="togglePump(1)">
+                            🔵
+                        </button>
+                        <p id="status1">TẮT</p>
+                    </div>
+
+                    <div class="pump-card">
+                        <h3>⚖️ Bơm B (Dinh Dưỡng)</h3>
+                        <button class="pump-toggle pump-off" id="toggle2" onclick="togglePump(2)">
+                            🔵
+                        </button>
+                        <p id="status2">TẮT</p>
+                    </div>
+
+                    <div class="pump-card">
+                        <h3>🧪 Bơm Down-pH</h3>
+                        <button class="pump-toggle pump-off" id="toggle3" onclick="togglePump(3)">
+                            🔵
+                        </button>
+                        <p id="status3">TẮT</p>
+                    </div>
+                </div>
+
+                <div class="info-box" style="margin-top: 30px;">
+                    <strong>💡 Lưu ý:</strong><br>
+                    - Chế độ thủ công cho phép bạn bật/tắt từng bơm độc lập<br>
+                    - Sử dụng cẩn thận để tránh quá liều dinh dưỡng hoặc acid<br>
+                    - Khuyến nghị: Quay lại chế độ tự động sau khi test<br>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        let currentMode = 'auto';
+        let pumpStates = [false, false, false, false]; // pump, A, B, downpH
+        const pumpNames = ['pump', 'a', 'b', 'downph'];
+
+        function switchMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnAuto').classList.remove('mode-active');
+            document.getElementById('btnManual').classList.remove('mode-active');
+            
+            if (mode === 'auto') {
+                document.getElementById('btnAuto').classList.add('mode-active');
+                document.getElementById('autoMode').style.display = 'block';
+                document.getElementById('manualMode').style.display = 'none';
+                
+                // Switch to auto mode via API
+                const autoForm = new FormData();
+                autoForm.append('auto', '1');
+                fetch('/manual', {
+                    method: 'POST',
+                    body: autoForm
+                }).then(() => {
+                    console.log('Switched to AUTO mode');
+                });
+            } else {
+                document.getElementById('btnManual').classList.add('mode-active');
+                document.getElementById('autoMode').style.display = 'none';
+                document.getElementById('manualMode').style.display = 'block';
+                
+                // Switch to manual mode via API
+                const manualForm = new FormData();
+                manualForm.append('manual', '1');
+                fetch('/manual', {
+                    method: 'POST',
+                    body: manualForm
+                }).then(() => {
+                    console.log('Switched to MANUAL mode');
+                });
+            }
+        }
+
+        function togglePump(index) {
+            if (currentMode !== 'manual') return;
+            
+            pumpStates[index] = !pumpStates[index];
+            const state = pumpStates[index];
+            
+            // Update UI
+            const btn = document.getElementById('toggle' + index);
+            const status = document.getElementById('status' + index);
+            
+            if (state) {
+                btn.classList.remove('pump-off');
+                btn.classList.add('pump-on');
+                status.textContent = 'BẬT';
+            } else {
+                btn.classList.remove('pump-on');
+                btn.classList.add('pump-off');
+                status.textContent = 'TẮT';
+            }
+            
+            // Send command to ESP32
+            const formData = new FormData();
+            if (index === 0) formData.append('pump', state ? '1' : '0');
+            if (index === 1) formData.append('a', state ? '1' : '0');
+            if (index === 2) formData.append('b', state ? '1' : '0');
+            if (index === 3) formData.append('downph', state ? '1' : '0');
+            
+            fetch('/manual', {
+                method: 'POST',
+                body: formData
+            });
+        }
+
+        // Initialize mode
+        switchMode('auto');
+    </script>
+</body>
+</html>
+
+
+
+

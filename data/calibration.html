@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hiệu Chuẩn - Farm365</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 10px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; }
+        header { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 20px; text-align: center; }
+        h1 { font-size: 1.8em; margin-bottom: 10px; }
+        .nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 15px; background: #f5f5f5; }
+        .nav a { text-decoration: none; padding: 10px 20px; background: #4CAF50; color: white; border-radius: 25px; transition: all 0.3s; font-size: 0.9em; }
+        .nav a:hover { background: #45a049; }
+        .nav a.active { background: #2e7d32; }
+        .content { padding: 15px; }
+        .section { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 10px; border: 2px solid #e0e0e0; }
+        .section h3 { color: #2e7d32; margin-bottom: 15px; font-size: 1.3em; }
+        .btn { padding: 14px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: all 0.3s; margin: 5px 0; width: 100%; }
+        .btn-primary { background: #4CAF50; color: white; }
+        .btn-primary:hover { background: #45a049; }
+        .btn-secondary { background: #2196F3; color: white; }
+        .btn-secondary:hover { background: #0b7dda; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-danger:hover { background: #da190b; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-warning:hover { background: #e68900; }
+        .info-box { background: #e3f2fd; padding: 12px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #2196F3; font-size: 0.9em; }
+        .warning-box { background: #fff3cd; padding: 12px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #ffc107; font-size: 0.9em; }
+        .success-box { background: #d4edda; padding: 12px; border-radius: 5px; margin-top: 15px; border-left: 4px solid #28a745; font-size: 0.9em; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 1em; }
+        .form-group input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 1.1em; }
+        .form-group input:focus { border-color: #4CAF50; outline: none; }
+        .form-group small { font-size: 0.85em; color: #999; display: block; margin-top: 5px; }
+        .status { font-size: 1em; color: #666; margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        
+        /* Desktop styles */
+        @media (min-width: 768px) {
+            body { padding: 20px; }
+            h1 { font-size: 2.5em; }
+            header { padding: 30px; }
+            .content { padding: 30px; }
+            .section { padding: 20px; margin-bottom: 30px; }
+            .section h3 { font-size: 1.5em; }
+            .btn { width: auto; margin: 5px; padding: 12px 30px; font-size: 1em; }
+            .info-box, .warning-box, .success-box { padding: 15px; }
+            .form-group input { padding: 10px; font-size: 1em; }
+            .status { font-size: 1.2em; }
+            .nav a { padding: 12px 30px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔬 Hiệu Chuẩn Cảm Biến</h1>
+            <p>Điều Chỉnh pH và TDS để Đo Chính Xác</p>
+        </header>
+        <nav class="nav">
+            <a href="/">Trang chủ</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/config">Cấu Hình</a>
+            <a href="/manual">Điều Khiển</a>
+            <a href="/calibration" class="active">Hiệu Chuẩn</a>
+        </nav>
+        <div class="content">
+            <div class="warning-box">
+                ⚠️ <strong>Quan trọng:</strong> Hiệu chuẩn nên thực hiện mỗi 2-4 tuần hoặc khi thay dung dịch mới. Luôn rửa sạch probe trước khi hiệu chuẩn.
+            </div>
+
+            <div class="section">
+                <h3>🧪 Hiệu Chuẩn pH (2 điểm)</h3>
+                <p>Cần dung dịch chuẩn pH7 và pH4 (hoặc pH10)</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="calibpH7()">📏 Set pH7</button>
+                    <button class="btn btn-primary" onclick="calibpH4()">📏 Set pH4 (hoặc pH10)</button>
+                </div>
+                
+                <div class="status" id="phStatus">Chưa hiệu chuẩn</div>
+                
+                <div class="info-box">
+                    <strong>💡 Hướng dẫn:</strong><br>
+                    1. Nhúng probe pH vào dung dịch chuẩn pH7, đợi 30-60 giây<br>
+                    2. Bấm "Set pH7"<br>
+                    3. Rửa probe bằng nước cất, lau khô nhẹ<br>
+                    4. Nhúng vào dung dịch chuẩn pH4 hoặc pH10, đợi 30-60 giây<br>
+                    5. Bấm "Set pH4"<br>
+                </div>
+                
+                <div class="warning-box">
+                    <strong>⚙️ Chiết Áp Module pH (Aideepen / LM358):</strong><br>
+                    <strong>Hướng vặn:</strong><br>
+                    • <strong>CW (phải)</strong> → Tăng điện áp OUT → pH hiển thị <strong>giảm</strong> (7.0 → 6.5)<br>
+                    • <strong>CCW (trái)</strong> → Giảm điện áp OUT → pH hiển thị <strong>tăng</strong> (7.0 → 7.5)<br>
+                    <br>
+                    <strong>Mục tiêu:</strong> pH 6.86 → OUT ≈ 2.50V | pH 4.00 → OUT ≈ 3.00V<br>
+                    <br>
+                    <strong>⚠️ Lưu ý:</strong><br>
+                    - KHÔNG chỉnh chiết áp sau khi đã hiệu chuẩn phần mềm<br>
+                    - Vặn rất chậm (1/8 vòng mỗi lần)<br>
+                    - Nếu cần chỉnh: Reset hiệu chuẩn → Chỉnh chiết áp → Set lại pH7/pH4
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>⚖️ Hiệu Chuẩn TDS</h3>
+                <p>Cần dung dịch chuẩn TDS (ví dụ: 1413 µS/cm hoặc 2764 µS/cm)</p>
+                
+                <div class="form-group">
+                    <label>EC Chuẩn (µS/cm) của dung dịch chuẩn:</label>
+                    <input type="number" id="knownEC" value="1413" min="100" max="5000" placeholder="1413">
+                    <small>Ví dụ: 1413 µS/cm = 707 ppm, 2764 µS/cm = 1382 ppm</small>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="calibTDS()">📏 Set TDS</button>
+                </div>
+                
+                <div class="status" id="tdsStatus">Chưa hiệu chuẩn</div>
+                
+                <div class="info-box">
+                    <strong>💡 Hướng dẫn:</strong><br>
+                    1. Nhúng probe TDS vào dung dịch chuẩn, đợi 30 giây<br>
+                    2. Nhập EC chuẩn (µS/cm) của dung dịch<br>
+                    3. Bấm "Set TDS"<br>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>⚡ Hiệu Chuẩn ZMCT103C (Dòng Điện AC)</h3>
+                <p>Hiệu chuẩn cảm biến dòng điện AC 2 bước</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="calibZMCTOffset()">📏 Bước 1: Set Offset (Không tải)</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>Dòng điện thực tế (A) - đo bằng đồng hồ vạn năng:</label>
+                    <input type="number" id="knownCurrent" value="1.0" min="0.1" max="50" step="0.1" placeholder="1.0">
+                    <small>Ví dụ: 1.5A (đo bằng ampe kìm hoặc đồng hồ vạn năng)</small>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="calibZMCTSensitivity()">📏 Bước 2: Set Sensitivity (Có tải)</button>
+                </div>
+                
+                <div class="status" id="zmctStatus">Chưa hiệu chuẩn</div>
+                
+                <div class="info-box">
+                    <strong>💡 Hướng dẫn:</strong><br>
+                    <strong>Bước 1:</strong> Tắt tất cả thiết bị điện (không tải), bấm "Set Offset"<br>
+                    <strong>Bước 2:</strong> Bật thiết bị điện đã biết dòng, đo bằng ampe kìm, nhập giá trị, bấm "Set Sensitivity"<br>
+                    <strong>Lưu ý:</strong> Cần có tải ổn định (bóng đèn, bơm nước) để hiệu chuẩn chính xác.
+                </div>
+                
+                <div class="warning-box">
+                    <strong>⚙️ Chiết Áp Module ZMCT103C:</strong><br>
+                    <strong>Hướng vặn:</strong><br>
+                    • <strong>CW (phải)</strong> → Tăng biên độ → Độ nhạy <strong>cao hơn</strong><br>
+                    • <strong>CCW (trái)</strong> → Giảm biên độ → Độ nhạy <strong>thấp hơn</strong><br>
+                    <br>
+                    <strong>Mục tiêu:</strong><br>
+                    • Không tải → OUT ≈ 2.5V<br>
+                    • Tải 100W (0.45A) → OUT dao động ±0.3-0.4V quanh 2.5V (2.1-2.9V)<br>
+                    <br>
+                    <strong>⚠️ Lưu ý:</strong><br>
+                    - KHÔNG chỉnh chiết áp sau khi đã hiệu chuẩn phần mềm<br>
+                    - Vặn rất chậm (1/8 vòng mỗi lần)<br>
+                    - Tránh bão hòa tín hiệu (OUT: 0.5V - 3.0V)
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📊 Quản Lý Điện Năng</h3>
+                <button class="btn btn-warning" onclick="resetEnergy()">🔄 Reset Tổng Điện Năng (kWh)</button>
+                <div class="status" id="energyStatus">Tổng điện năng sẽ reset về 0 kWh</div>
+            </div>
+
+            <div class="section">
+                <h3>🔄 Reset Hiệu Chuẩn</h3>
+                <button class="btn btn-danger" onclick="resetCalib()">♻️ Reset Tất Cả Hiệu Chuẩn</button>
+                <div class="warning-box" style="margin-top: 15px;">
+                    Cảnh báo: Reset sẽ xóa tất cả các giá trị hiệu chuẩn đã lưu. Hệ thống sẽ dùng giá trị mặc định.
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function calibpH7() {
+            fetch('/calibration?setpH7=1', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('phStatus').innerHTML = '✅ pH7 đã được hiệu chuẩn';
+                    } else {
+                        alert('❌ Lỗi khi hiệu chuẩn pH7');
+                    }
+                });
+        }
+        
+        function calibpH4() {
+            fetch('/calibration?setpH4=1', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('phStatus').innerHTML = '✅ pH4/10 đã được hiệu chuẩn';
+                    } else {
+                        alert('❌ Lỗi khi hiệu chuẩn pH4');
+                    }
+                });
+        }
+        
+        function calibTDS() {
+            const knownEC = document.getElementById('knownEC').value;
+            if (!knownEC || knownEC < 100) {
+                alert('❌ Vui lòng nhập EC chuẩn hợp lệ (≥100 µS/cm)');
+                return;
+            }
+            fetch('/calibration?setTDS=1&knownEC=' + knownEC, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('tdsStatus').innerHTML = '✅ TDS đã được hiệu chuẩn với EC ' + knownEC + ' µS/cm';
+                    } else {
+                        alert('❌ Lỗi khi hiệu chuẩn TDS');
+                    }
+                });
+        }
+        
+        function calibZMCTOffset() {
+            fetch('/calibration?setZMCTOffset=1', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('zmctStatus').innerHTML = '✅ Bước 1: Offset đã được hiệu chuẩn';
+                    } else {
+                        alert('❌ Lỗi khi hiệu chuẩn ZMCT Offset');
+                    }
+                });
+        }
+
+        function calibZMCTSensitivity() {
+            const knownCurrent = document.getElementById('knownCurrent').value;
+            if (!knownCurrent || knownCurrent < 0.1) {
+                alert('❌ Vui lòng nhập dòng điện thực tế hợp lệ (≥0.1A)');
+                return;
+            }
+            fetch('/calibration?setZMCTSensitivity=1&knownCurrent=' + knownCurrent, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        document.getElementById('zmctStatus').innerHTML = '✅ Bước 2: Sensitivity đã được hiệu chuẩn với ' + knownCurrent + 'A';
+                    } else {
+                        alert('❌ Lỗi khi hiệu chuẩn ZMCT Sensitivity');
+                    }
+                });
+        }
+
+        function resetEnergy() {
+            if (confirm('⚠️ Bạn có chắc chắn muốn reset tổng điện năng về 0 kWh?')) {
+                fetch('/calibration?resetEnergy=1', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            document.getElementById('energyStatus').innerHTML = '✅ Tổng điện năng đã được reset về 0 kWh';
+                        } else {
+                            alert('❌ Lỗi khi reset điện năng');
+                        }
+                    });
+            }
+        }
+
+        function resetCalib() {
+            if (confirm('⚠️ Bạn có chắc chắn muốn reset tất cả hiệu chuẩn? Hệ thống sẽ dùng giá trị mặc định.')) {
+                // TODO: Implement reset via API
+                alert('Tính năng reset đang được phát triển');
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+

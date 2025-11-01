@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="5">
+    <title>Dashboard - Farm365</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .nav {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: #f5f5f5;
+        }
+        .nav a {
+            text-decoration: none;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 25px;
+            transition: all 0.3s;
+            font-size: 0.9em;
+        }
+        @media (min-width: 768px) {
+            .nav { gap: 15px; padding: 20px; }
+            .nav a { padding: 12px 30px; font-size: 1em; }
+        }
+        .nav a:hover {
+            background: #45a049;
+        }
+        .content {
+            padding: 30px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #4CAF50;
+        }
+        .card-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-size: 1.1em;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        .card-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2e7d32;
+        }
+        .card-unit {
+            font-size: 1.2em;
+            color: #999;
+            margin-left: 5px;
+        }
+        .status-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 20px;
+        }
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .status-row:last-child {
+            border-bottom: none;
+        }
+        .status-label {
+            font-weight: 600;
+            color: #555;
+        }
+        .status-value {
+            color: #2e7d32;
+            font-weight: bold;
+        }
+        .pump-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .pump-on {
+            background: #4CAF50;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+        .pump-off {
+            background: #999;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .auto-refresh {
+            text-align: center;
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Dashboard - Farm365</h1>
+            <p>Dữ Liệu Cảm Biến Real-Time</p>
+        </header>
+        <nav class="nav">
+            <a href="/">Trang chủ</a>
+            <a href="/dashboard" class="active">Dashboard</a>
+            <a href="/config">Cấu Hình</a>
+            <a href="/manual">Điều Khiển</a>
+            <a href="/calibration">Hiệu Chuẩn</a>
+        </nav>
+        <div class="content">
+            <div class="grid">
+                <div class="card">
+                    <div class="card-icon">🌡️</div>
+                    <div class="card-title">Nhiệt Độ Nước</div>
+                    <div class="card-value">
+                        <span id="temp">--</span><span class="card-unit">°C</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🧪</div>
+                    <div class="card-title">pH</div>
+                    <div class="card-value">
+                        <span id="ph">--</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⚖️</div>
+                    <div class="card-title">TDS</div>
+                    <div class="card-value">
+                        <span id="tds">--</span><span class="card-unit">ppm</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">⚡</div>
+                    <div class="card-title">Dòng Điện</div>
+                    <div class="card-value">
+                        <span id="current">--</span><span class="card-unit">A</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">🔌</div>
+                    <div class="card-title">Công Suất</div>
+                    <div class="card-value">
+                        <span id="power">--</span><span class="card-unit">W</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-icon">📊</div>
+                    <div class="card-title">Điện Năng</div>
+                    <div class="card-value">
+                        <span id="energy">--</span><span class="card-unit">kWh</span>
+                    </div>
+                </div>
+            </div>
+            <div class="status-card">
+                <h2 style="margin-bottom: 20px; color: #1976d2;">Trạng Thái Hệ Thống</h2>
+                <div class="status-row">
+                    <span class="status-label">Bơm Tuần Hoàn</span>
+                    <span class="status-value">
+                        <span class="pump-indicator" id="pump-ind"></span><span id="pump-stat">--</span>
+                    </span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">TDS (Dinh Dưỡng)</span>
+                    <span class="status-value" id="tds-status">
+                        <span style="color: #666;">📊 Đang theo dõi...</span>
+                    </span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">pH (Độ Chua)</span>
+                    <span class="status-value" id="ph-status">
+                        <span style="color: #666;">📊 Đang theo dõi...</span>
+                    </span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Bơm A Hôm Nay</span>
+                    <span class="status-value" id="dose-a-today">0 giây</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Bơm B Hôm Nay</span>
+                    <span class="status-value" id="dose-b-today">0 giây</span>
+                </div>
+                <div class="status-row">
+                    <span class="status-label">Bơm pH Hôm Nay</span>
+                    <span class="status-value" id="dose-ph-today">0 giây</span>
+                </div>
+            </div>
+            <div class="auto-refresh">
+                🔄 Tự động cập nhật mỗi 5 giây
+            </div>
+        </div>
+    </div>
+    <script>
+        let updateTimer = null;
+        let isUpdating = false;
+        const UPDATE_INTERVAL = 3000; // 3 giây thay vì 5 giây
+        const RETRY_DELAY = 2000;
+        
+        function updateData() {
+            if (isUpdating) return; // Tránh overlapping requests
+            isUpdating = true;
+            
+            fetch('/api/sensor', { 
+                method: 'GET',
+                cache: 'no-cache',
+                headers: { 'Accept': 'application/json' }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                // Batch DOM updates
+                requestAnimationFrame(() => {
+                    document.getElementById('temp').textContent = (data.temp || 0).toFixed(1);
+                    document.getElementById('ph').textContent = (data.ph || 0).toFixed(2);
+                    document.getElementById('tds').textContent = Math.round(data.tds || 0);
+                    document.getElementById('current').textContent = (data.current || 0).toFixed(2);
+                    document.getElementById('power').textContent = (data.power || 0).toFixed(1);
+                    document.getElementById('energy').textContent = (data.energy || 0).toFixed(3);
+                    
+                    const pumpOn = data.pump === 1;
+                    document.getElementById('pump-ind').className = 'pump-indicator ' + (pumpOn ? 'pump-on' : 'pump-off');
+                    document.getElementById('pump-stat').textContent = pumpOn ? 'Đang chạy' : 'Tạm dừng';
+                    
+                    // TDS Status
+                    const tds = data.tds || 0;
+                    const tdsTarget = data.tdsTarget || 800;
+                    const tdsHyst = data.tdsHyst || 50;
+                    const tdsLow = tdsTarget - tdsHyst;
+                    const tdsHigh = tdsTarget + tdsHyst;
+                    const tdsDosing = data.tdsDosing === 1;
+                    
+                    let tdsStatusHtml = '';
+                    if (tds < tdsLow) {
+                        tdsStatusHtml = '<span style="color: #ff9800;">⚠️ Thấp (' + tds + ' < ' + tdsLow + ') → Đang châm</span>';
+                    } else if (tds > tdsHigh) {
+                        tdsStatusHtml = '<span style="color: #4caf50;">✅ Cao (' + tds + ' > ' + tdsHigh + ') → Dừng châm</span>';
+                    } else {
+                        if (tdsDosing) {
+                            tdsStatusHtml = '<span style="color: #2196f3;">🔄 Trong vùng (' + tdsLow + '-' + tdsHigh + ') → Đang châm</span>';
+                        } else {
+                            tdsStatusHtml = '<span style="color: #4caf50;">✅ Trong vùng (' + tdsLow + '-' + tdsHigh + ') → Ổn định</span>';
+                        }
+                    }
+                    document.getElementById('tds-status').innerHTML = tdsStatusHtml;
+                    
+                    // pH Status
+                    const ph = data.ph || 0;
+                    const phTarget = data.phTarget || 6.0;
+                    const phHyst = data.phHyst || 0.3;
+                    const phLow = phTarget - phHyst;
+                    const phHigh = phTarget + phHyst;
+                    const phDosing = data.phDosing === 1;
+                    
+                    let phStatusHtml = '';
+                    if (ph > phHigh) {
+                        phStatusHtml = '<span style="color: #ff9800;">⚠️ Cao (' + ph.toFixed(2) + ' > ' + phHigh.toFixed(1) + ') → Đang châm pH-</span>';
+                    } else if (ph < phLow) {
+                        phStatusHtml = '<span style="color: #4caf50;">✅ Thấp (' + ph.toFixed(2) + ' < ' + phLow.toFixed(1) + ') → Dừng châm</span>';
+                    } else {
+                        if (phDosing) {
+                            phStatusHtml = '<span style="color: #2196f3;">🔄 Trong vùng (' + phLow.toFixed(1) + '-' + phHigh.toFixed(1) + ') → Đang châm</span>';
+                        } else {
+                            phStatusHtml = '<span style="color: #4caf50;">✅ Trong vùng (' + phLow.toFixed(1) + '-' + phHigh.toFixed(1) + ') → Ổn định</span>';
+                        }
+                    }
+                    document.getElementById('ph-status').innerHTML = phStatusHtml;
+                    
+                    // Daily doses
+                    document.getElementById('dose-a-today').textContent = (data.doseAToday || 0).toFixed(1) + ' giây';
+                    document.getElementById('dose-b-today').textContent = (data.doseBToday || 0).toFixed(1) + ' giây';
+                    document.getElementById('dose-ph-today').textContent = (data.dosePToday || 0).toFixed(1) + ' giây';
+                });
+                isUpdating = false;
+                
+                // Schedule next update
+                if (updateTimer) clearTimeout(updateTimer);
+                updateTimer = setTimeout(updateData, UPDATE_INTERVAL);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                isUpdating = false;
+                // Retry after delay
+                if (updateTimer) clearTimeout(updateTimer);
+                updateTimer = setTimeout(updateData, RETRY_DELAY);
+            });
+        }
+        
+        // Initial load
+        updateData();
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (updateTimer) clearTimeout(updateTimer);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
