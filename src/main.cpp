@@ -121,6 +121,11 @@ uint8_t ledPattern = 0; // 0: boot, 1: OK, 2: wifi error, 3: sensor error, 4: pu
 bool manualControl = false;
 bool manualPump = false, manualA = false, manualB = false, manualDownpH = false;
 
+// Auto control enable/disable (quan trọng khi hỏng cảm biến hoặc hết dung dịch)
+bool autoLoopEnabled = true;   // Bơm tuần hoàn tự động ON/OFF
+bool autoTDSEnabled = true;    // Châm TDS tự động ON/OFF
+bool autoPHEnabled = true;     // Châm pH tự động ON/OFF
+
 // Hysteresis state machines
 bool tdsDosing = false;  // Đang trong chu kỳ châm TDS
 bool phDosing = false;   // Đang trong chu kỳ châm pH
@@ -258,9 +263,26 @@ void setup() {
     json += "\"phTarget\":" + String(phCfg.target, 2) + ",";
     json += "\"phHyst\":" + String(phCfg.hyst, 2) + ",";
     json += "\"phDose\":" + String(phCfg.dose_ms) + ",";
-    json += "\"phLock\":" + String(phCfg.lock_s);
+    json += "\"phLock\":" + String(phCfg.lock_s) + ",";
+    json += "\"autoLoop\":" + String(autoLoopEnabled ? 1 : 0) + ",";
+    json += "\"autoTDS\":" + String(autoTDSEnabled ? 1 : 0) + ",";
+    json += "\"autoPH\":" + String(autoPHEnabled ? 1 : 0);
     json += "}";
     sendJSON(json);
+  });
+  server.on("/api/auto-control", HTTP_POST, []() {
+    // Toggle auto control settings
+    if (server.hasArg("autoLoop")) {
+      autoLoopEnabled = server.arg("autoLoop").toInt() == 1;
+    }
+    if (server.hasArg("autoTDS")) {
+      autoTDSEnabled = server.arg("autoTDS").toInt() == 1;
+    }
+    if (server.hasArg("autoPH")) {
+      autoPHEnabled = server.arg("autoPH").toInt() == 1;
+    }
+    saveConfig();
+    sendJSON("{\"status\":\"ok\"}");
   });
   server.onNotFound([]() {
     handleStaticFile(server.uri());
@@ -369,7 +391,8 @@ void loop() {
                                (unsigned long)loopCfg.off_min_day * 60000UL : 
                                (unsigned long)loopCfg.off_min_night * 60000UL;
   
-  if (!manualControl) {
+  if (!manualControl && autoLoopEnabled) {
+    // Auto mode: circulation pump với day/night schedule
     if (loopOn) {
       if (millis() - tLastLoop > onMs) {
         loopOn = false;
@@ -391,7 +414,7 @@ void loop() {
         ledPattern = 1;
       }
     }
-  } else {
+  } else if (manualControl) {
     // Manual control
     setRelay(PIN_RELAY_PUMP, manualPump);
     if (manualPump) {
@@ -399,13 +422,17 @@ void loop() {
     } else if (ledPattern == 4) {
       ledPattern = 1;
     }
+  } else if (!autoLoopEnabled) {
+    // Auto control DISABLED → tắt bơm tuần hoàn
+    setRelay(PIN_RELAY_PUMP, false);
+    loopOn = false;
   }
   
   // Check non-blocking dosing
   checkDosePump();
   
   // TDS Control (Pump A & B) - Hysteresis 2 ngưỡng
-  if (!manualControl) {
+  if (!manualControl && autoTDSEnabled) {
     // Quyết định BẬT/TẮT chu kỳ châm dựa trên hysteresis 2 ngưỡng
     if (tdsVal < (tdsCfg.target - tdsCfg.hyst)) {
       // TDS < (target - hyst) → BẬT chu kỳ châm
@@ -451,7 +478,7 @@ void loop() {
   }
   
   // pH Control (Down-pH) - Hysteresis 2 ngưỡng
-  if (!manualControl) {
+  if (!manualControl && autoPHEnabled) {
     // Quyết định BẬT/TẮT chu kỳ châm dựa trên hysteresis 2 ngưỡng
     if (phVal > (phCfg.target + phCfg.hyst)) {
       // pH > (target + hyst) → BẬT chu kỳ châm
@@ -479,9 +506,13 @@ void loop() {
         }
       }
     }
-  } else {
+  } else if (manualControl) {
     setRelay(PIN_RELAY_DOWNP, manualDownpH);
     phDosing = false;  // Reset state khi manual
+  } else if (!autoPHEnabled) {
+    // Auto control DISABLED → tắt bơm pH
+    setRelay(PIN_RELAY_DOWNP, false);
+    phDosing = false;
   }
   
   // LED pattern cho dosing pumps
@@ -659,6 +690,11 @@ void loadConfig() {
   cal.tds_k = prefs.getFloat("calTDS", 0.5f);
   cal.zmctOffset = prefs.getFloat("zmctOffset", 1.65f);
   cal.zmctSensitivity = prefs.getFloat("zmctSens", 10.0f);
+  
+  // Load auto control settings
+  autoLoopEnabled = prefs.getBool("autoLoop", true);
+  autoTDSEnabled = prefs.getBool("autoTDS", true);
+  autoPHEnabled = prefs.getBool("autoPH", true);
 }
 
 void saveConfig() {
@@ -686,6 +722,11 @@ void saveConfig() {
   prefs.putFloat("calTDS", cal.tds_k);
   prefs.putFloat("zmctOffset", cal.zmctOffset);
   prefs.putFloat("zmctSens", cal.zmctSensitivity);
+  
+  // Save auto control settings
+  prefs.putBool("autoLoop", autoLoopEnabled);
+  prefs.putBool("autoTDS", autoTDSEnabled);
+  prefs.putBool("autoPH", autoPHEnabled);
 }
 
 // ===== Web Server Handlers =====
@@ -858,6 +899,36 @@ void handleSensorData() {
   // Trạng thái thực tế của bơm tuần hoàn
   bool pumpActualState = manualControl ? manualPump : loopOn;
   
+  // Tính thời gian còn lại cho bơm tuần hoàn (ms)
+  struct tm timeinfo;
+  bool timeValid = getLocalTime(&timeinfo, 0);
+  bool isDaytime = false;
+  if (timeValid && timeinfo.tm_year >= 70) {
+    int hour = timeinfo.tm_hour;
+    isDaytime = (hour >= loopCfg.light_start && hour < loopCfg.light_end);
+  } else {
+    unsigned long hours = (millis() / 3600000UL) % 24;
+    isDaytime = (hours >= loopCfg.light_start && hours < loopCfg.light_end);
+  }
+  
+  const unsigned long onMs  = isDaytime ? 
+                               (unsigned long)loopCfg.on_min_day * 60000UL : 
+                               (unsigned long)loopCfg.on_min_night * 60000UL;
+  const unsigned long offMs = isDaytime ? 
+                               (unsigned long)loopCfg.off_min_day * 60000UL : 
+                               (unsigned long)loopCfg.off_min_night * 60000UL;
+  
+  unsigned long loopRemainMs = 0;
+  if (loopOn) {
+    // Đang ON → thời gian còn lại cho ON
+    unsigned long elapsed = millis() - tLastLoop;
+    loopRemainMs = (elapsed < onMs) ? (onMs - elapsed) : 0;
+  } else {
+    // Đang OFF → thời gian còn lại cho OFF
+    unsigned long elapsed = millis() - tLastLoop;
+    loopRemainMs = (elapsed < offMs) ? (offMs - elapsed) : 0;
+  }
+  
   String json = "{";
   json += "\"temp\":" + String(tempC, 1) + ",";
   json += "\"ph\":" + String(phVal, 2) + ",";
@@ -867,6 +938,7 @@ void handleSensorData() {
   json += "\"energy\":" + String(energyKwh, 3) + ",";
   json += "\"pump\":" + String(pumpActualState ? 1 : 0) + ",";
   json += "\"loopOn\":" + String(loopOn ? 1 : 0) + ",";
+  json += "\"loopRemainMs\":" + String(loopRemainMs) + ",";
   json += "\"manualMode\":" + String(manualControl ? 1 : 0) + ",";
   json += "\"manualPump\":" + String(manualPump ? 1 : 0) + ",";
   

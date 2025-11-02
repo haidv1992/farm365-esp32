@@ -320,3 +320,4 @@ ADC > 0 → Sensor kết nối OK → Hiệu chuẩn để chính xác!
 
 
 
+

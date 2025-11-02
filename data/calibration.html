@@ -106,8 +106,8 @@
             </div>
 
             <div class="section">
-                <h3>⚖️ Hiệu Chuẩn TDS</h3>
-                <p>Cần dung dịch chuẩn TDS (ví dụ: 1413 µS/cm hoặc 2764 µS/cm)</p>
+                <h3>⚖️ Hiệu Chuẩn TDS (Độ Dẫn Điện)</h3>
+                <p>Cần dung dịch chuẩn EC (ví dụ: 1413 µS/cm hoặc 2764 µS/cm)</p>
                 
                 <div class="form-group">
                     <label>EC Chuẩn (µS/cm) của dung dịch chuẩn:</label>
@@ -126,6 +126,162 @@
                     1. Nhúng probe TDS vào dung dịch chuẩn, đợi 30 giây<br>
                     2. Nhập EC chuẩn (µS/cm) của dung dịch<br>
                     3. Bấm "Set TDS"<br>
+                    4. Rửa sạch probe bằng nước cất sau khi hiệu chuẩn
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📚 Hướng Dẫn Bảo Trì & Tuổi Thọ Cảm Biến TDS</h3>
+                
+                <div class="success-box">
+                    <strong>⚙️ 1️⃣ Tuổi Thọ và Tần Suất Hiệu Chuẩn</strong><br><br>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <tr style="background: #fff;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Môi Trường</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Hiệu Chuẩn</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Tuổi Thọ</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">🌿 Thủy canh gia đình (sạch, ít tạp chất)</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>2-3 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">2 – 3 năm</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">🧪 Nông nghiệp tuần hoàn (có muối, phân bón)</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>1-2 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">1 – 2 năm</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">💧 Nước thải / giàu ion kim loại</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>2-3 tuần/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">6 – 12 tháng</td>
+                        </tr>
+                    </table>
+                    <br>
+                    ✅ <strong>So với pH:</strong> TDS sensor BỀN HƠN GẤP ĐÔI (2-3 năm vs 6-18 tháng)!
+                </div>
+
+                <div class="info-box">
+                    <strong>⚙️ 2️⃣ Khi Nào Cần Hiệu Chuẩn Lại?</strong><br><br>
+                    1. Sau mỗi lần vệ sinh bằng giấm/acid<br>
+                    2. Sau 2-3 tháng sử dụng liên tục<br>
+                    3. Khi thấy sai lệch > ±50-100 ppm so với bút đo<br>
+                    4. Sau khi thay dung dịch dinh dưỡng mới<br><br>
+                    
+                    <strong>Dấu hiệu cụ thể:</strong><br>
+                    • TDS đo <strong>chậm ổn định (>30s)</strong> → Cặn bám trên điện cực<br>
+                    • Sai lệch <strong>±50-100 ppm</strong> → Cần hiệu chuẩn lại<br>
+                    • Đọc <strong>0 hoặc rất thấp</strong> trong dung dịch đặc → Điện cực đứt mạch<br>
+                    • Giá trị <strong>nhảy số liên tục</strong> → Tiếp xúc lỏng / oxy hóa
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚙️ 3️⃣ Cách Kiểm Tra Độ Chính Xác</strong><br><br>
+                    <strong>Test nhanh với dung dịch chuẩn:</strong><br><br>
+                    
+                    <strong>Phương pháp 1: Dung dịch chuẩn EC</strong><br>
+                    1️⃣ Nhúng vào <strong>EC 1413 µS/cm</strong> (TDS ≈ 707 ppm)<br>
+                    2️⃣ Đợi ổn định 30 giây → Đọc giá trị<br><br>
+                    
+                    <strong>Kết quả:</strong><br>
+                    • Đọc <strong>680-730 ppm</strong> → ✅ OK (sai số ±3%)<br>
+                    • Đọc <strong>650-750 ppm</strong> → ⚠️ Nên hiệu chuẩn lại<br>
+                    • Đọc <strong>< 650 hoặc > 800 ppm</strong> → ❌ Cần thay probe<br><br>
+                    
+                    <strong>Phương pháp 2: So sánh với bút đo TDS</strong><br>
+                    • Đo cùng dung dịch → So sánh giá trị<br>
+                    • Sai số < ±50 ppm → ✅ OK<br>
+                    • Sai số 50-100 ppm → ⚠️ Hiệu chuẩn<br>
+                    • Sai số > 100 ppm → ❌ Cần thay
+                </div>
+
+                <div class="success-box">
+                    <strong>⚙️ 4️⃣ Cách Kéo Dài Tuổi Thọ TDS Probe</strong><br><br>
+                    ✅ <strong>Rửa sau mỗi lần đo:</strong><br>
+                    • Ngâm 5-10 phút trong nước sạch<br>
+                    • Lau nhẹ bằng giấy mềm (KHÔNG chà mạnh)<br><br>
+                    
+                    ✅ <strong>Vệ sinh định kỳ (1 tháng/lần):</strong><br>
+                    • <strong>Cách 1:</strong> Ngâm 15-30 phút trong giấm trắng (5-10% acetic acid)<br>
+                    • <strong>Cách 2:</strong> Ngâm 5-10 phút trong HCl loãng (0.1M) - KHÔNG quá lâu<br>
+                    • Sau đó: Rửa sạch bằng nước cất + Hiệu chuẩn lại<br><br>
+                    
+                    ✅ <strong>Bảo quản đúng cách:</strong><br>
+                    • Ngâm trong nước sạch (KHÔNG phải nước cất)<br>
+                    • Hoặc ngâm trong dung dịch KCl (nếu có)<br>
+                    • KHÔNG để cặn muối khô trên điện cực<br><br>
+                    
+                    ❌ <strong>Tránh:</strong><br>
+                    • Chà/chải mạnh điện cực → Mòn mạ<br>
+                    • Ngâm nước cất lâu → Mất ion trên điện cực<br>
+                    • Nhiệt độ > 60°C → Plastic biến dạng<br>
+                    • Chất tẩy rửa mạnh → Ăn mòn
+                </div>
+
+                <div class="info-box">
+                    <strong>⚙️ 5️⃣ Lịch Bảo Trì Gợi Ý (Thủy Canh)</strong><br><br>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <tr style="background: #fff;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Chu Kỳ</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Việc Cần Làm</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>Hàng ngày</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Kiểm tra giá trị có bất thường không</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>1 tuần/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Rửa probe bằng nước sạch (ngâm 5-10 phút)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>1 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Vệ sinh bằng giấm/HCl loãng</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>2-3 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Hiệu chuẩn với dung dịch chuẩn 1413 µS/cm</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>6 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">So sánh với bút đo mới/chuẩn</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>1-3 năm</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Thay probe khi sai số > ±200 ppm</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="warning-box">
+                    <strong>📊 Tóm Tắt Nhanh</strong><br><br>
+                    • <strong>Hiệu chuẩn định kỳ:</strong> 2-3 tháng / lần<br>
+                    • <strong>Vệ sinh:</strong> 1 tháng / lần (giấm hoặc HCl loãng)<br>
+                    • <strong>Thay probe:</strong> Sau 1-3 năm (hoặc sai số > ±200 ppm)<br>
+                    • <strong>Giá trị chuẩn:</strong> EC 1413 µS/cm → TDS ≈ 707 ppm<br>
+                    • <strong>Dấu hiệu hỏng:</strong> Đọc 0, nhảy số, sai số > ±200 ppm<br>
+                    • <strong>Ưu điểm:</strong> BỀN GẤP ĐÔI pH probe, ít bảo trì hơn!
+                </div>
+
+                <div class="success-box">
+                    <strong>🔬 Kiến Thức Chuyên Sâu</strong><br><br>
+                    
+                    <strong>1️⃣ TDS = EC × Hệ Số</strong><br>
+                    • EC (µS/cm): Độ dẫn điện thuần túy<br>
+                    • TDS (ppm): Tổng chất rắn hòa tan<br>
+                    • Hệ số: 0.5 (NaCl), 0.64 (KCl), 0.5-0.7 (dinh dưỡng thủy canh)<br>
+                    • Hệ thống này dùng: <strong>TDS = EC × 0.5</strong><br><br>
+                    
+                    <strong>2️⃣ Bù Nhiệt Độ</strong><br>
+                    • 10°C → TDS đo thấp hơn ~10%<br>
+                    • 25°C → TDS chuẩn (reference)<br>
+                    • 40°C → TDS đo cao hơn ~10%<br>
+                    • Hệ thống tự động bù nhiệt độ qua DS18B20<br><br>
+                    
+                    <strong>3️⃣ Cấu Tạo Probe</strong><br>
+                    • 2 điện cực inox hoặc graphite<br>
+                    • Đo độ dẫn điện giữa 2 cực<br>
+                    • Không có gel/màng thủy tinh → BỀN hơn pH<br>
+                    • Chịu được nhiệt độ 0-80°C
                 </div>
             </div>
 
@@ -184,6 +340,122 @@
                 <button class="btn btn-danger" onclick="resetCalib()">♻️ Reset Tất Cả Hiệu Chuẩn</button>
                 <div class="warning-box" style="margin-top: 15px;">
                     Cảnh báo: Reset sẽ xóa tất cả các giá trị hiệu chuẩn đã lưu. Hệ thống sẽ dùng giá trị mặc định.
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📚 Hướng Dẫn Bảo Trì & Tuổi Thọ Cảm Biến pH</h3>
+                
+                <div class="success-box">
+                    <strong>⚙️ 1️⃣ Tuổi Thọ và Tần Suất Hiệu Chuẩn</strong><br><br>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <tr style="background: #fff;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Môi Trường</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Hiệu Chuẩn</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Tuổi Thọ</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">🌿 Thủy canh gia đình (sạch, ít tạp chất)</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>1 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">1 – 1.5 năm</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">🧪 Nông nghiệp tuần hoàn (có muối, tạp chất)</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>2–3 tuần/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">6 – 12 tháng</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">💧 Nước thải / giàu ion kim loại</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;"><strong>1–2 tuần/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">3 – 6 tháng</td>
+                        </tr>
+                    </table>
+                    <br>
+                    ⚠️ <strong>Lưu ý:</strong> Dù không dùng, đầu dò vẫn lão hóa (gel khô, điện cực oxy hóa).
+                </div>
+
+                <div class="info-box">
+                    <strong>⚙️ 2️⃣ Khi Nào Cần Hiệu Chuẩn Lại?</strong><br><br>
+                    1. Sau mỗi lần rửa hoặc thay dung dịch mới<br>
+                    2. Sau 1–2 tuần không sử dụng<br>
+                    3. Khi thấy giá trị pH dao động mạnh (> ±0.2)<br>
+                    4. Khi đọc pH sai lệch so với thực tế<br><br>
+                    
+                    <strong>Dấu hiệu cụ thể:</strong><br>
+                    • pH đo <strong>chậm ổn định (>60s)</strong> → Điện cực khô / gel khử nước<br>
+                    • pH <strong>dao động liên tục ±0.3–0.5</strong> → Đầu dò bẩn<br>
+                    • pH <strong>luôn cao/thấp hơn</strong> → Lão hóa<br>
+                    • Điện áp OUT <strong>> 3.3V hoặc < 1V</strong> → Chiết áp lệch / đầu dò hỏng
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚙️ 3️⃣ Cách Phát Hiện Đầu Dò pH Bị Sai</strong><br><br>
+                    <strong>Test nhanh bằng 2 dung dịch chuẩn:</strong><br><br>
+                    1️⃣ Nhúng vào <strong>pH 6.86</strong> → đợi ổn định → ghi điện áp V₆.₈₆ (ví dụ: 2.50V)<br>
+                    2️⃣ Rửa sạch, nhúng <strong>pH 4.00</strong> → ghi V₄ (ví dụ: 3.00V)<br>
+                    3️⃣ Tính <strong>ΔV = V₄ - V₆.₈₆</strong><br><br>
+                    
+                    <strong>Kết quả:</strong><br>
+                    • ΔV ≈ <strong>0.40–0.55 V</strong> → ✅ Còn tốt<br>
+                    • ΔV < <strong>0.30 V</strong> → ❌ Đầu dò yếu, cần thay<br>
+                    • ΔV > <strong>0.70 V</strong> hoặc không ổn định → ❌ Lỗi op-amp / đầu dò<br><br>
+                    
+                    💡 <strong>Mẹo:</strong> Ghi giá trị này mỗi tháng để thấy độ trôi theo thời gian.
+                </div>
+
+                <div class="success-box">
+                    <strong>⚙️ 4️⃣ Cách Kéo Dài Tuổi Thọ Đầu Dò pH</strong><br><br>
+                    ✅ <strong>Luôn giữ ẩm đầu thủy tinh:</strong><br>
+                    • Khi không dùng → ngâm trong <strong>dung dịch KCl</strong> hoặc <strong>pH 4.00</strong><br>
+                    • <strong>KHÔNG để khô</strong> đầu (nếu khô > 2–3 ngày thường hỏng)<br><br>
+                    
+                    ✅ <strong>Không lau mạnh:</strong><br>
+                    • Lau nhẹ bằng giấy mềm / bông tẩm nước cất<br><br>
+                    
+                    ✅ <strong>Không ngâm nước cất lâu:</strong><br>
+                    • Nước cất làm mất ion trong màng thủy tinh → mất nhạy<br><br>
+                    
+                    ✅ <strong>Rửa sạch sau mỗi lần đo:</strong><br>
+                    • Ngâm 30s trong nước sạch rồi lau khô
+                </div>
+
+                <div class="info-box">
+                    <strong>⚙️ 5️⃣ Lịch Bảo Trì Gợi Ý (Thủy Canh)</strong><br><br>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <tr style="background: #fff;">
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Chu Kỳ</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Việc Cần Làm</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>Hàng ngày</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Kiểm tra pH có dao động mạnh không</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>2 tuần/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">So sánh với bút đo / dung dịch pH 6.86</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>1 tháng/lần</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Hiệu chuẩn lại (pH 6.86 & 4.00)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>6–12 tháng</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Thay đầu dò nếu ΔV < 0.3V / phản ứng chậm</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;"><strong>Thay dung dịch</strong></td>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Rửa đầu dò, kiểm tra OUT ≈ 2.5V (pH 6.86)</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="warning-box">
+                    <strong>📊 Tóm Tắt Nhanh</strong><br><br>
+                    • <strong>Hiệu chuẩn định kỳ:</strong> 1 lần / tháng<br>
+                    • <strong>Test nhanh:</strong> pH 6.86 & 4.00 mỗi 2 tuần<br>
+                    • <strong>Thay đầu dò:</strong> Sau 9–12 tháng (hoặc ΔV < 0.3V)<br>
+                    • <strong>Điện áp lý tưởng:</strong> pH 7 → 2.50V; pH 4 → 3.00V<br>
+                    • <strong>Dấu hiệu hỏng:</strong> Đọc chậm, sai số > ±0.3 pH, OUT < 1.5V hoặc > 3.2V
                 </div>
             </div>
         </div>

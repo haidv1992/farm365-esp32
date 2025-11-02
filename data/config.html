@@ -64,6 +64,34 @@
             
             <form id="configForm" method="POST">
                 <div class="section">
+                    <h3>🎛️ Điều Khiển Tự Động (ON/OFF)</h3>
+                    <div class="info-box">
+                        <strong>💡 Quan trọng:</strong> Tắt bơm tự động khi hỏng cảm biến hoặc hết dung dịch để tránh hư hại hệ thống.
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="autoLoop" style="width: auto; transform: scale(1.5);">
+                                <span>🔄 Bơm Tuần Hoàn Tự Động</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="autoTDS" style="width: auto; transform: scale(1.5);">
+                                <span>⚖️ Châm TDS Tự Động</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="autoPH" style="width: auto; transform: scale(1.5);">
+                                <span>🧪 Châm pH Tự Động</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="section">
                     <h3>🔄 Lịch Bơm Tuần Hoàn (Ngày/Đêm)</h3>
                     <div class="form-row">
                         <div class="form-group">
@@ -167,6 +195,12 @@
             fetch('/api/config')
                 .then(response => response.json())
                 .then(config => {
+                    // Auto control checkboxes
+                    document.getElementById('autoLoop').checked = config.autoLoop === 1;
+                    document.getElementById('autoTDS').checked = config.autoTDS === 1;
+                    document.getElementById('autoPH').checked = config.autoPH === 1;
+                    
+                    // Existing config
                     document.querySelector('[name="loopOnDay"]').value = config.loopOnDay;
                     document.querySelector('[name="loopOffDay"]').value = config.loopOffDay;
                     document.querySelector('[name="loopOnNight"]').value = config.loopOnNight;
@@ -183,7 +217,34 @@
                     document.querySelector('[name="phLock"]').value = config.phLock;
                 })
                 .catch(error => console.error('Lỗi load config:', error));
+            
+            // Add event listeners for auto control toggles (save immediately)
+            document.getElementById('autoLoop').addEventListener('change', function(e) {
+                saveAutoControl('autoLoop', e.target.checked ? 1 : 0);
+            });
+            document.getElementById('autoTDS').addEventListener('change', function(e) {
+                saveAutoControl('autoTDS', e.target.checked ? 1 : 0);
+            });
+            document.getElementById('autoPH').addEventListener('change', function(e) {
+                saveAutoControl('autoPH', e.target.checked ? 1 : 0);
+            });
         });
+        
+        function saveAutoControl(param, value) {
+            const formData = new FormData();
+            formData.append(param, value);
+            fetch('/api/auto-control', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    console.log('Auto control updated:', param, value);
+                }
+            })
+            .catch(error => console.error('Error updating auto control:', error));
+        }
 
         document.getElementById('configForm').addEventListener('submit', function(e) {
             e.preventDefault();

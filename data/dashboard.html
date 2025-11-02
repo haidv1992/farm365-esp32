@@ -217,6 +217,10 @@
                         <span class="pump-indicator" id="pump-ind"></span><span id="pump-stat">--</span>
                     </span>
                 </div>
+                <div class="status-row" style="font-size: 0.9em; color: #666;">
+                    <span class="status-label">⏱️ Thời gian còn lại</span>
+                    <span class="status-value" id="pump-countdown" style="font-family: monospace; color: #2196f3;">--:--</span>
+                </div>
                 <div class="status-row">
                     <span class="status-label">TDS (Dinh Dưỡng)</span>
                     <span class="status-value" id="tds-status">
@@ -277,8 +281,17 @@
                     document.getElementById('energy').textContent = (data.energy || 0).toFixed(3);
                     
                     const pumpOn = data.pump === 1;
+                    const loopOn = data.loopOn === 1;
                     document.getElementById('pump-ind').className = 'pump-indicator ' + (pumpOn ? 'pump-on' : 'pump-off');
                     document.getElementById('pump-stat').textContent = pumpOn ? 'Đang chạy' : 'Tạm dừng';
+                    
+                    // Countdown timer
+                    const remainMs = data.loopRemainMs || 0;
+                    const mins = Math.floor(remainMs / 60000);
+                    const secs = Math.floor((remainMs % 60000) / 1000);
+                    const countdownText = mins + ':' + (secs < 10 ? '0' : '') + secs;
+                    const action = loopOn ? 'TẮT' : 'BẬT';
+                    document.getElementById('pump-countdown').textContent = countdownText + ' (' + action + ')';
                     
                     // TDS Status
                     const tds = data.tds || 0;
