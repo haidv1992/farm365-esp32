@@ -23,6 +23,7 @@
 #include <LittleFS.h>
 #include <FS.h>
 #include <time.h>
+#include <esp_task_wdt.h>  // Hardware Watchdog
 
 // ===== Pin Definitions =====
 constexpr uint8_t PIN_RELAY_PUMP  = 18;  // Tuần hoàn
@@ -116,7 +117,15 @@ DosingState activeDosing = {0, false, 0, nullptr, 0, 0};
 bool wifiConnected = false;
 bool ledState = false;
 unsigned long lastLedBlink = 0;
-uint8_t ledPattern = 0; // 0: boot, 1: OK, 2: wifi error, 3: sensor error, 4: pumping
+uint8_t ledPattern = 0; // 0: boot, 1: OK, 2: wifi error, 3: sensor error, 4: pumping, 5: wifi reconnecting
+
+// WiFi reconnect
+unsigned long lastWiFiCheck = 0;
+constexpr unsigned long WIFI_CHECK_INTERVAL = 30000; // Check mỗi 30 giây
+constexpr unsigned long WIFI_RECONNECT_TIMEOUT = 15000; // Timeout reconnect 15s
+
+// Watchdog
+constexpr uint32_t WDT_TIMEOUT = 120; // 120 giây (đủ thời gian cho cả chu kỳ bơm dài nhất)
 
 bool manualControl = false;
 bool manualPump = false, manualA = false, manualB = false, manualDownpH = false;
@@ -139,6 +148,7 @@ void setRelay(uint8_t pin, bool on);
 bool startDosePump(uint8_t pin, uint16_t ms, uint32_t &accum, uint32_t limit, unsigned long &lastDoseTime);
 void checkDosePump();
 void ledPatternControl();
+void checkWiFiAndReconnect();
 void loadConfig();
 void saveConfig();
 void handleRoot();
@@ -197,14 +207,23 @@ void setup() {
   prefs.begin("farm365", false);
   loadConfig();
   
+  // ===== CRITICAL: Initialize Hardware Watchdog =====
+  // Watchdog sẽ reset ESP32 nếu bị treo > 120s
+  Serial.println("Initializing Hardware Watchdog (120s timeout)...");
+  esp_task_wdt_init(WDT_TIMEOUT, true);  // true = enable panic so ESP32 can reboot
+  esp_task_wdt_add(NULL);  // Add current task to WDT
+  Serial.println("Watchdog enabled - system will auto-reset if frozen");
+  
   // Initialize WiFi
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(false); // Chúng ta tự quản lý reconnect
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   
   unsigned long wifiTimeout = millis();
   while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimeout < 10000)) {
     delay(500);
     Serial.print(".");
+    esp_task_wdt_reset(); // Feed watchdog trong khi đợi WiFi
   }
   
   if (WiFi.status() == WL_CONNECTED) {
@@ -230,6 +249,7 @@ void setup() {
   } else {
     wifiConnected = false;
     Serial.println("WiFi connection failed!");
+    Serial.println("⚠️ CRITICAL: Pump will continue working WITHOUT WiFi!");
     ledPattern = 2; // WiFi error
   }
   
@@ -302,6 +322,15 @@ void setup() {
 void loop() {
   static unsigned long tSense = 0;
   static unsigned long tLockA = 0, tLockB = 0, tLockP = 0;
+  static bool pumpActualState = false;  // Relay thực tế (để báo cáo đúng trạng thái)
+  
+  // ===== CRITICAL: Feed Watchdog =====
+  // Reset watchdog mỗi vòng loop để tránh ESP32 tự reset
+  esp_task_wdt_reset();
+  
+  // ===== CRITICAL: Check WiFi và Reconnect =====
+  // Kiểm tra WiFi mỗi 30s và reconnect nếu mất kết nối
+  checkWiFiAndReconnect();
   
   // Check for new day (reset daily counters)
   static unsigned long lastDayCheck = 0;
@@ -658,9 +687,86 @@ void ledPatternControl() {
     case 4: // Pumping - solid on
       digitalWrite(PIN_LED, HIGH);
       break;
+    case 5: // WiFi reconnecting - nháy đều mỗi 0.5s
+      if (now - lastLedBlink >= 500) {
+        ledState = !ledState;
+        digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+        lastLedBlink = now;
+      }
+      break;
     default:
       digitalWrite(PIN_LED, LOW);
       break;
+  }
+}
+
+// ===== CRITICAL: WiFi Reconnect Function =====
+void checkWiFiAndReconnect() {
+  unsigned long now = millis();
+  
+  // Chỉ check mỗi 30s để tránh overhead
+  if (now - lastWiFiCheck < WIFI_CHECK_INTERVAL) {
+    return;
+  }
+  lastWiFiCheck = now;
+  
+  // Kiểm tra trạng thái WiFi
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wifiConnected) {
+      // Vừa mới kết nối lại thành công
+      wifiConnected = true;
+      Serial.println("✅ WiFi reconnected!");
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+      
+      // Thử sync NTP lại
+      configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+      
+      if (ledPattern == 2 || ledPattern == 5) {
+        ledPattern = 1; // Back to OK
+      }
+      writeLog("WiFi reconnected");
+    }
+  } else {
+    // Mất kết nối WiFi
+    if (wifiConnected) {
+      wifiConnected = false;
+      Serial.println("⚠️ WiFi disconnected! Attempting reconnect...");
+      Serial.println("⚠️ CRITICAL: Pump continues working WITHOUT WiFi!");
+      writeLog("WiFi disconnected");
+      ledPattern = 5; // Reconnecting pattern
+    }
+    
+    // Thử reconnect (không blocking)
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Reconnecting WiFi...");
+      WiFi.disconnect();
+      delay(100);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+      
+      // Đợi tối đa 15s (với watchdog feed)
+      unsigned long startReconnect = millis();
+      while (WiFi.status() != WL_CONNECTED && 
+             (millis() - startReconnect < WIFI_RECONNECT_TIMEOUT)) {
+        delay(500);
+        Serial.print(".");
+        esp_task_wdt_reset(); // Feed watchdog trong khi reconnect
+      }
+      Serial.println();
+      
+      if (WiFi.status() == WL_CONNECTED) {
+        wifiConnected = true;
+        Serial.println("✅ WiFi reconnected successfully!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        ledPattern = 1;
+        writeLog("WiFi reconnected");
+      } else {
+        Serial.println("❌ WiFi reconnect failed - will retry in 30s");
+        Serial.println("⚠️ PUMP STILL WORKING - System is SAFE!");
+        ledPattern = 2; // WiFi error
+      }
+    }
   }
 }
 
