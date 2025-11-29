@@ -323,6 +323,7 @@ void loop() {
   static unsigned long tSense = 0;
   static unsigned long tLockA = 0, tLockB = 0, tLockP = 0;
   static bool pumpActualState = false;  // Relay thực tế (để báo cáo đúng trạng thái)
+  static bool sensorOk = true;          // Lưu trạng thái sensor gần nhất
   
   // ===== CRITICAL: Feed Watchdog =====
   // Reset watchdog mỗi vòng loop để tránh ESP32 tự reset
@@ -390,7 +391,8 @@ void loop() {
     lastEnergyUpdate = now;
     
     // Check for sensor errors
-    if (tempC == -127.0f || tempC == 85.0f || isnan(phVal) || isnan(tdsVal)) {
+    sensorOk = !(tempC == -127.0f || tempC == 85.0f || isnan(phVal) || isnan(tdsVal));
+    if (!sensorOk) {
       ledPattern = 3; // Sensor error
     } else if (ledPattern == 3) {
       ledPattern = 1; // Recover to OK
@@ -461,7 +463,12 @@ void loop() {
   checkDosePump();
   
   // TDS Control (Pump A & B) - Hysteresis 2 ngưỡng
-  if (!manualControl && autoTDSEnabled) {
+  if (manualControl) {
+    // MANUAL mode - điều khiển trực tiếp
+    setRelay(PIN_RELAY_A, manualA);
+    setRelay(PIN_RELAY_B, manualB);
+    tdsDosing = false;  // Reset state khi manual
+  } else if (autoTDSEnabled && sensorOk) {
     // Quyết định BẬT/TẮT chu kỳ châm dựa trên hysteresis 2 ngưỡng
     if (tdsVal < (tdsCfg.target - tdsCfg.hyst)) {
       // TDS < (target - hyst) → BẬT chu kỳ châm
@@ -500,14 +507,17 @@ void loop() {
       }
     }
   } else {
-    // MANUAL mode - điều khiển trực tiếp
-    setRelay(PIN_RELAY_A, manualA);
-    setRelay(PIN_RELAY_B, manualB);
-    tdsDosing = false;  // Reset state khi manual
+    // AUTO bị tắt hoặc sensor lỗi → đảm bảo dừng bơm châm
+    setRelay(PIN_RELAY_A, false);
+    setRelay(PIN_RELAY_B, false);
+    tdsDosing = false;
   }
   
   // pH Control (Down-pH) - Hysteresis 2 ngưỡng
-  if (!manualControl && autoPHEnabled) {
+  if (manualControl) {
+    setRelay(PIN_RELAY_DOWNP, manualDownpH);
+    phDosing = false;  // Reset state khi manual
+  } else if (autoPHEnabled && sensorOk) {
     // Quyết định BẬT/TẮT chu kỳ châm dựa trên hysteresis 2 ngưỡng
     if (phVal > (phCfg.target + phCfg.hyst)) {
       // pH > (target + hyst) → BẬT chu kỳ châm
@@ -535,11 +545,8 @@ void loop() {
         }
       }
     }
-  } else if (manualControl) {
-    setRelay(PIN_RELAY_DOWNP, manualDownpH);
-    phDosing = false;  // Reset state khi manual
-  } else if (!autoPHEnabled) {
-    // Auto control DISABLED → tắt bơm pH
+  } else {
+    // AUTO bị tắt hoặc sensor lỗi → tắt bơm pH
     setRelay(PIN_RELAY_DOWNP, false);
     phDosing = false;
   }
@@ -552,6 +559,11 @@ void loop() {
         (millis() - tLastDoseP < (phCfg.dose_ms + 1000))) {
       ledPattern = 4;
     }
+  }
+
+  // Ưu tiên báo lỗi sensor nếu còn lỗi
+  if (!sensorOk) {
+    ledPattern = 3;
   }
   
   // LED pattern control
@@ -1120,4 +1132,3 @@ String generateManualPage() {
   String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Điều Khiển - Farm365</title></head><body><h1>Điều Khiển Thủ Công</h1><p>Trang này đang phát triển. Vui lòng upload file manual.html vào LittleFS.</p></body></html>");
   return html;
 }
-

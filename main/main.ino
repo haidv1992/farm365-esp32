@@ -219,6 +219,7 @@ void setup() {
 void loop() {
   static unsigned long tSense = 0;
   static unsigned long tLockA = 0, tLockB = 0, tLockP = 0;
+  static bool sensorOk = true;
   
   // Check for new day (reset daily counters)
   static unsigned long lastDayCheck = 0;
@@ -253,7 +254,8 @@ void loop() {
     tempC = ds.getTempCByIndex(0);
     
     // Check for sensor errors
-    if (tempC == -127.0f || tempC == 85.0f || isnan(phVal) || isnan(tdsVal)) {
+    sensorOk = !(tempC == -127.0f || tempC == 85.0f || isnan(phVal) || isnan(tdsVal));
+    if (!sensorOk) {
       ledPattern = 3; // Sensor error
     } else if (ledPattern == 3) {
       ledPattern = 1; // Recover to OK
@@ -291,7 +293,10 @@ void loop() {
   }
   
   // TDS Control (Pump A & B)
-  if (!manualControl) {
+  if (manualControl) {
+    setRelay(PIN_RELAY_A, manualA);
+    setRelay(PIN_RELAY_B, manualB);
+  } else if (autoTDSEnabled && sensorOk) {
     if (tdsVal < (tdsCfg.target - tdsCfg.hyst)) {
       if (millis() - tLockA > (unsigned long)tdsCfg.lock_s * 1000UL) {
         dosePump(PIN_RELAY_A, tdsCfg.dose_ms, doseA_today, tdsCfg.max_ms_per_day);
@@ -310,12 +315,15 @@ void loop() {
       }
     }
   } else {
-    setRelay(PIN_RELAY_A, manualA);
-    setRelay(PIN_RELAY_B, manualB);
+    // AUTO bị tắt hoặc sensor lỗi → đảm bảo dừng bơm châm
+    setRelay(PIN_RELAY_A, false);
+    setRelay(PIN_RELAY_B, false);
   }
   
   // pH Control (Down-pH)
-  if (!manualControl) {
+  if (manualControl) {
+    setRelay(PIN_RELAY_DOWNP, manualDownpH);
+  } else if (autoPHEnabled && sensorOk) {
     if (phVal > (phCfg.target + phCfg.hyst)) {
       if (millis() - tLockP > (unsigned long)phCfg.lock_s * 1000UL) {
         dosePump(PIN_RELAY_DOWNP, phCfg.dose_ms, doseP_today, phCfg.max_ms_per_day);
@@ -325,7 +333,13 @@ void loop() {
       }
     }
   } else {
-    setRelay(PIN_RELAY_DOWNP, manualDownpH);
+    // AUTO bị tắt hoặc sensor lỗi → tắt bơm pH
+    setRelay(PIN_RELAY_DOWNP, false);
+  }
+  
+  // Ưu tiên báo lỗi sensor nếu còn lỗi
+  if (!sensorOk) {
+    ledPattern = 3;
   }
   
   // LED pattern control
@@ -670,4 +684,3 @@ String generateManualPage() {
   String html = F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>Điều Khiển - Farm365</title></head><body><h1>Điều Khiển Thủ Công</h1><p>Trang này đang phát triển. Vui lòng upload file manual.html vào LittleFS.</p></body></html>");
   return html;
 }
-
