@@ -292,6 +292,7 @@ void loop() {
   } else {
     // Manual control
     setRelay(PIN_RELAY_PUMP, manualPump);
+    loopOn = manualPump; // đồng bộ trạng thái cho LED logic
   }
   
   // TDS Control (Pump A & B)
@@ -345,6 +346,16 @@ void loop() {
   }
   
   // LED pattern control
+  // Khi không có bơm chạy, đưa LED về OK (trừ khi sensor lỗi)
+  if (!loopOn) {
+    unsigned long now = millis();
+    bool recentDose = (tLastDoseA > 0 && now - tLastDoseA < (tdsCfg.dose_ms + 1000)) ||
+                      (tLastDoseB > 0 && now - tLastDoseB < (tdsCfg.dose_ms + 1000)) ||
+                      (tLastDoseP > 0 && now - tLastDoseP < (phCfg.dose_ms + 1000));
+    if (!activeDosing.active && !recentDose && ledPattern == 4 && sensorOk) {
+      ledPattern = 1;
+    }
+  }
   ledPatternControl();
   
   // Handle web server

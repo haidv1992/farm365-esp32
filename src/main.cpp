@@ -450,6 +450,7 @@ void loop() {
   } else if (manualControl) {
     // Manual control
     setRelay(PIN_RELAY_PUMP, manualPump);
+    loopOn = manualPump; // Đồng bộ trạng thái bơm cho LED logic phía sau
     if (manualPump) {
       ledPattern = 4;
     } else if (ledPattern == 4) {
@@ -555,11 +556,15 @@ void loop() {
   
   // LED pattern cho dosing pumps
   if (!loopOn) {  // Chỉ set nếu bơm tuần hoàn không chạy
+    unsigned long now = millis();
     if (activeDosing.active || 
-        (millis() - tLastDoseA < (tdsCfg.dose_ms + 1000)) ||
-        (millis() - tLastDoseB < (tdsCfg.dose_ms + 1000)) ||
-        (millis() - tLastDoseP < (phCfg.dose_ms + 1000))) {
+        (tLastDoseA > 0 && now - tLastDoseA < (tdsCfg.dose_ms + 1000)) ||
+        (tLastDoseB > 0 && now - tLastDoseB < (tdsCfg.dose_ms + 1000)) ||
+        (tLastDoseP > 0 && now - tLastDoseP < (phCfg.dose_ms + 1000))) {
       ledPattern = 4;
+    } else if (ledPattern == 4 && sensorOk) {
+      // Không còn bơm nào chạy hoặc vừa dose → trở về trạng thái OK
+      ledPattern = 1;
     }
   }
 
