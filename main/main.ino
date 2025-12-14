@@ -93,6 +93,7 @@ bool wifiConnected = false;
 bool ledState = false;
 unsigned long lastLedBlink = 0;
 uint8_t ledPattern = 0; // 0: boot, 1: OK, 2: wifi error, 3: sensor error, 4: pumping
+bool fsReady = false;    // LittleFS mount status
 
 bool manualControl = false;
 bool manualPump = false, manualA = false, manualB = false, manualDownpH = false;
@@ -187,7 +188,8 @@ void setup() {
   }
   
   // Initialize LittleFS
-  if (LittleFS.begin()) {
+  fsReady = LittleFS.begin();
+  if (fsReady) {
     Serial.println("LittleFS mounted successfully");
     writeLog("System started");
   } else {
@@ -661,13 +663,8 @@ void handleStaticFile(String path) {
 }
 
 void writeLog(String msg) {
-  File f = LittleFS.open("/log.txt", "a");
-  if (f) {
-    f.print(millis());
-    f.print(",");
-    f.println(msg);
-    f.close();
-  }
+  if (!fsReady) return;
+  // Ghi log tạm tắt để tránh LittleFS crash; bật lại sau khi format/upload fs
 }
 
 String generateConfigPage() {
