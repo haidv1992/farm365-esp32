@@ -24,6 +24,7 @@
 #include <FS.h>
 #include <time.h>
 #include <esp_task_wdt.h>  // Hardware Watchdog
+#include <esp_system.h>
 
 // ===== Pin Definitions =====
 constexpr uint8_t PIN_RELAY_PUMP  = 18;  // Tuần hoàn
@@ -120,6 +121,33 @@ unsigned long lastLedBlink = 0;
 uint8_t ledPattern = 0; // 0: boot, 1: OK, 2: wifi error, 3: sensor error, 4: pumping, 5: wifi reconnecting
 bool fsReady = false;    // LittleFS mount status
 
+// Runtime diagnostics
+constexpr uint8_t SENSOR_BAD_LATCH_COUNT = 3;
+constexpr uint8_t SENSOR_GOOD_CLEAR_COUNT = 5;
+constexpr size_t DIAG_EVENT_CAPACITY = 64;
+constexpr size_t DIAG_EVENT_LEN = 96;
+
+struct DiagCounters {
+  uint32_t bootCount = 0;
+  uint32_t powerOnCount = 0;
+  uint32_t brownoutCount = 0;
+  uint32_t wdtCount = 0;
+  uint32_t sensorFaultCount = 0;
+} diagCounters;
+
+esp_reset_reason_t lastResetReason = ESP_RST_UNKNOWN;
+const char* lastResetReasonText = "UNKNOWN";
+bool sensorFaultLatched = false;
+bool loopCommandedOn = false;
+bool pumpRelayCommandOn = false;
+uint8_t sensorBadStreak = 0;
+uint8_t sensorGoodStreak = 0;
+char lastSensorFaultReason[DIAG_EVENT_LEN] = "none";
+char lastDiagEvent[DIAG_EVENT_LEN] = "";
+char diagEvents[DIAG_EVENT_CAPACITY][DIAG_EVENT_LEN] = {{0}};
+size_t diagEventWriteIndex = 0;
+size_t diagEventTotal = 0;
+
 // WiFi reconnect
 unsigned long lastWiFiCheck = 0;
 constexpr unsigned long WIFI_CHECK_INTERVAL = 30000; // Check mỗi 30 giây
@@ -158,6 +186,7 @@ void handleConfig();
 void handleCalibration();
 void handleManualControl();
 void handleSensorData();
+void handleDiagData();
 void sendJSON(const String& json);
 String readFile(String path);
 void handleStaticFile(String path);
@@ -165,6 +194,14 @@ void writeLog(String msg);
 String generateConfigPage();
 String generateCalibrationPage();
 String generateManualPage();
+void commandPumpRelay(bool on);
+const char* resetReasonToString(esp_reset_reason_t reason);
+void loadDiagCounters();
+void recordBootDiagnostics();
+void updateSensorHealth();
+String jsonEscape(const char* text);
+void validateLoadedConfig();
+String jsonFloatOrNull(float value, int decimals);
 
 // ===== Setup =====
 void setup() {
@@ -187,7 +224,7 @@ void setup() {
   pinMode(PIN_RELAY_DOWNP, OUTPUT);
   
   // Set all relays OFF (HIGH for low-trigger)
-  setRelay(PIN_RELAY_PUMP, false);
+  commandPumpRelay(false);
   setRelay(PIN_RELAY_A, false);
   setRelay(PIN_RELAY_B, false);
   setRelay(PIN_RELAY_DOWNP, false);
@@ -207,6 +244,8 @@ void setup() {
   // Initialize preferences
   prefs.begin("farm365", false);
   loadConfig();
+  loadDiagCounters();
+  recordBootDiagnostics();
   
   // ===== CRITICAL: Initialize Hardware Watchdog =====
   // Watchdog sẽ reset ESP32 nếu bị treo > 120s
@@ -270,6 +309,7 @@ void setup() {
   server.on("/calibration", handleCalibration);
   server.on("/manual", handleManualControl);
   server.on("/api/sensor", handleSensorData);
+  server.on("/api/diag", handleDiagData);
   server.on("/api/config", []() {
     String json = "{";
     json += "\"loopOnDay\":" + String(loopCfg.on_min_day) + ",";
@@ -314,7 +354,9 @@ void setup() {
   Serial.println("Web server started");
   
   // Set LED pattern to OK
-  ledPattern = 1;
+  if (ledPattern != 2) {
+    ledPattern = 1;
+  }
   lastLedBlink = millis();
   
   lastResetTime = millis();
@@ -324,8 +366,7 @@ void setup() {
 void loop() {
   static unsigned long tSense = 0;
   static unsigned long tLockA = 0, tLockB = 0, tLockP = 0;
-  static bool pumpActualState = false;  // Relay thực tế (để báo cáo đúng trạng thái)
-  static bool sensorOk = true;          // Lưu trạng thái sensor gần nhất
+  bool sensorOk = !sensorFaultLatched;
   
   // ===== CRITICAL: Feed Watchdog =====
   // Reset watchdog mỗi vòng loop để tránh ESP32 tự reset
@@ -392,13 +433,9 @@ void loop() {
     }
     lastEnergyUpdate = now;
     
-    // Check for sensor errors
-    sensorOk = !(tempC == -127.0f || tempC == 85.0f || isnan(phVal) || isnan(tdsVal));
-    if (!sensorOk) {
-      ledPattern = 3; // Sensor error
-    } else if (ledPattern == 3) {
-      ledPattern = 1; // Recover to OK
-    }
+    // Check for sensor errors with debounce/latch to avoid false alarms
+    updateSensorHealth();
+    sensorOk = !sensorFaultLatched;
     
     // Read light (optional - commented if no BH1750)
     //luxVal = lightMeter.readLightLevel();
@@ -427,20 +464,26 @@ void loop() {
   if (!manualControl && autoLoopEnabled) {
     // Auto mode: circulation pump với day/night schedule
     if (loopOn) {
+      loopCommandedOn = true;
       if (millis() - tLastLoop > onMs) {
         loopOn = false;
+        loopCommandedOn = false;
         tLastLoop = millis();
-        setRelay(PIN_RELAY_PUMP, false);
+        commandPumpRelay(false);
         ledPattern = 1;
         writeLog("Circulation pump OFF");
       } else {
+        commandPumpRelay(true);  // Re-assert relay every loop in AUTO mode
         ledPattern = 4; // Pumping
       }
     } else {
+      loopCommandedOn = false;
+      commandPumpRelay(false);
       if (millis() - tLastLoop > offMs) {
         loopOn = true;
+        loopCommandedOn = true;
         tLastLoop = millis();
-        setRelay(PIN_RELAY_PUMP, true);
+        commandPumpRelay(true);
         ledPattern = 4; // Pumping
         writeLog("Circulation pump ON");
       } else if (ledPattern == 4) {
@@ -449,7 +492,8 @@ void loop() {
     }
   } else if (manualControl) {
     // Manual control
-    setRelay(PIN_RELAY_PUMP, manualPump);
+    loopCommandedOn = manualPump;
+    commandPumpRelay(manualPump);
     loopOn = manualPump; // Đồng bộ trạng thái bơm cho LED logic phía sau
     if (manualPump) {
       ledPattern = 4;
@@ -458,7 +502,8 @@ void loop() {
     }
   } else if (!autoLoopEnabled) {
     // Auto control DISABLED → tắt bơm tuần hoàn
-    setRelay(PIN_RELAY_PUMP, false);
+    loopCommandedOn = false;
+    commandPumpRelay(false);
     loopOn = false;
   }
   
@@ -624,6 +669,11 @@ void setRelay(uint8_t pin, bool on) {
   digitalWrite(pin, on ? LOW : HIGH);
 }
 
+void commandPumpRelay(bool on) {
+  pumpRelayCommandOn = on;
+  setRelay(PIN_RELAY_PUMP, on);
+}
+
 // Non-blocking dose pump - returns true if started, false if limit reached
 bool startDosePump(uint8_t pin, uint16_t ms, uint32_t &accum, uint32_t limit, unsigned long &lastDoseTime) {
   if (activeDosing.active) {
@@ -656,6 +706,201 @@ void checkDosePump() {
     }
     activeDosing.active = false;
   }
+}
+
+const char* resetReasonToString(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:   return "POWERON_RESET";
+    case ESP_RST_EXT:       return "EXTERNAL_RESET";
+    case ESP_RST_SW:        return "SW_RESET";
+    case ESP_RST_PANIC:     return "PANIC_RESET";
+    case ESP_RST_INT_WDT:   return "INT_WDT_RESET";
+    case ESP_RST_TASK_WDT:  return "TASK_WDT_RESET";
+    case ESP_RST_WDT:       return "OTHER_WDT_RESET";
+    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP_RESET";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT_RESET";
+    case ESP_RST_SDIO:      return "SDIO_RESET";
+    default:                return "UNKNOWN_RESET";
+  }
+}
+
+void loadDiagCounters() {
+  diagCounters.bootCount = prefs.getUInt("bootCnt", 0);
+  diagCounters.powerOnCount = prefs.getUInt("rstPwr", 0);
+  diagCounters.brownoutCount = prefs.getUInt("rstBrn", 0);
+  diagCounters.wdtCount = prefs.getUInt("rstWdt", 0);
+  diagCounters.sensorFaultCount = prefs.getUInt("snsFault", 0);
+}
+
+void recordBootDiagnostics() {
+  lastResetReason = esp_reset_reason();
+  lastResetReasonText = resetReasonToString(lastResetReason);
+
+  diagCounters.bootCount++;
+  prefs.putUInt("bootCnt", diagCounters.bootCount);
+
+  if (lastResetReason == ESP_RST_POWERON) {
+    diagCounters.powerOnCount++;
+    prefs.putUInt("rstPwr", diagCounters.powerOnCount);
+  } else if (lastResetReason == ESP_RST_BROWNOUT) {
+    diagCounters.brownoutCount++;
+    prefs.putUInt("rstBrn", diagCounters.brownoutCount);
+  } else if (lastResetReason == ESP_RST_INT_WDT ||
+             lastResetReason == ESP_RST_TASK_WDT ||
+             lastResetReason == ESP_RST_WDT) {
+    diagCounters.wdtCount++;
+    prefs.putUInt("rstWdt", diagCounters.wdtCount);
+  }
+
+  Serial.printf("Reset reason: %s (%d)\n", lastResetReasonText, static_cast<int>(lastResetReason));
+  writeLog(String("Boot #") + String(diagCounters.bootCount) +
+           " resetReason=" + lastResetReasonText +
+           " powerOn=" + String(diagCounters.powerOnCount) +
+           " brownout=" + String(diagCounters.brownoutCount) +
+           " wdt=" + String(diagCounters.wdtCount));
+}
+
+void updateSensorHealth() {
+  const bool tempDisconnected = (tempC == -127.0f);
+  const bool tempPowerOnValue = (tempC == 85.0f);
+  const bool phInvalid = !isfinite(phVal);
+  const bool tdsInvalid = !isfinite(tdsVal);
+  const bool rawFault = tempDisconnected || tempPowerOnValue || phInvalid || tdsInvalid;
+
+  if (rawFault) {
+    if (sensorBadStreak < 255) sensorBadStreak++;
+    sensorGoodStreak = 0;
+  } else {
+    sensorBadStreak = 0;
+    if (sensorGoodStreak < 255) sensorGoodStreak++;
+  }
+
+  if (rawFault) {
+    String reason;
+    if (tempDisconnected) reason += (reason.length() ? "," : "") + String("temp=-127");
+    if (tempPowerOnValue) reason += (reason.length() ? "," : "") + String("temp=85");
+    if (phInvalid)        reason += (reason.length() ? "," : "") + String("ph=nan");
+    if (tdsInvalid)       reason += (reason.length() ? "," : "") + String("tds=nan");
+    if (reason.length() == 0) reason = "unknown";
+    snprintf(lastSensorFaultReason, sizeof(lastSensorFaultReason), "%s", reason.c_str());
+
+    if (!sensorFaultLatched && sensorBadStreak >= SENSOR_BAD_LATCH_COUNT) {
+      sensorFaultLatched = true;
+      diagCounters.sensorFaultCount++;
+      prefs.putUInt("snsFault", diagCounters.sensorFaultCount);
+      writeLog(String("Sensor fault latched: ") + lastSensorFaultReason +
+               " temp=" + String(tempC, 1) +
+               " ph=" + String(phVal, 2) +
+               " tds=" + String(tdsVal, 0));
+    }
+  } else if (sensorFaultLatched && sensorGoodStreak >= SENSOR_GOOD_CLEAR_COUNT) {
+    sensorFaultLatched = false;
+    snprintf(lastSensorFaultReason, sizeof(lastSensorFaultReason), "%s", "none");
+    writeLog("Sensor fault cleared after stable readings");
+  }
+}
+
+String jsonEscape(const char* text) {
+  String escaped;
+  if (!text) return escaped;
+
+  for (const char* p = text; *p; ++p) {
+    switch (*p) {
+      case '\\': escaped += "\\\\"; break;
+      case '"':  escaped += "\\\""; break;
+      case '\n': escaped += "\\n"; break;
+      case '\r': escaped += "\\r"; break;
+      case '\t': escaped += "\\t"; break;
+      default:   escaped += *p; break;
+    }
+  }
+  return escaped;
+}
+
+void validateLoadedConfig() {
+  bool changed = false;
+
+  auto clampUInt = [&](uint16_t &value, uint16_t def, uint16_t minV, uint16_t maxV) {
+    if (value < minV || value > maxV) {
+      value = def;
+      changed = true;
+    }
+  };
+
+  clampUInt(loopCfg.on_min_day, 15, 1, 180);
+  clampUInt(loopCfg.off_min_day, 45, 1, 180);
+  clampUInt(loopCfg.on_min_night, 10, 1, 180);
+  clampUInt(loopCfg.off_min_night, 50, 1, 180);
+  clampUInt(tdsCfg.target, 800, 50, 5000);
+  clampUInt(tdsCfg.hyst, 50, 1, 1000);
+  clampUInt(tdsCfg.dose_ms, 700, 50, 10000);
+  clampUInt(tdsCfg.lock_s, 90, 1, 3600);
+  clampUInt(phCfg.dose_ms, 300, 50, 10000);
+  clampUInt(phCfg.lock_s, 90, 1, 3600);
+
+  if (loopCfg.light_start > 23) { loopCfg.light_start = 6; changed = true; }
+  if (loopCfg.light_end > 23) { loopCfg.light_end = 18; changed = true; }
+  if (loopCfg.light_start == loopCfg.light_end) { loopCfg.light_start = 6; loopCfg.light_end = 18; changed = true; }
+
+  if (!isfinite(phCfg.target) || phCfg.target < 3.0f || phCfg.target > 10.0f) {
+    phCfg.target = 6.0f;
+    changed = true;
+  }
+  if (!isfinite(phCfg.hyst) || phCfg.hyst <= 0.0f || phCfg.hyst > 2.0f) {
+    phCfg.hyst = 0.3f;
+    changed = true;
+  }
+  if (tdsCfg.max_ms_per_day < 100 || tdsCfg.max_ms_per_day > 600000UL) {
+    tdsCfg.max_ms_per_day = 60000;
+    changed = true;
+  }
+  if (phCfg.max_ms_per_day < 100 || phCfg.max_ms_per_day > 600000UL) {
+    phCfg.max_ms_per_day = 30000;
+    changed = true;
+  }
+
+  if (!isfinite(cal.ph7) || cal.ph7 < 0.0f || cal.ph7 > 3.3f) {
+    cal.ph7 = 1.65f;
+    changed = true;
+  }
+  if (!isfinite(cal.ph4) || cal.ph4 < 0.0f || cal.ph4 > 3.3f) {
+    cal.ph4 = 2.10f;
+    changed = true;
+  }
+  if (fabs(cal.ph7 - cal.ph4) < 0.05f) {
+    cal.ph7 = 1.65f;
+    cal.ph4 = 2.10f;
+    changed = true;
+  }
+  if (!isfinite(cal.tds_k) || cal.tds_k <= 0.0f || cal.tds_k > 10.0f) {
+    cal.tds_k = 0.5f;
+    changed = true;
+  }
+  if (!isfinite(cal.zmctOffset) || cal.zmctOffset < 0.0f || cal.zmctOffset > 3.3f) {
+    cal.zmctOffset = 1.65f;
+    changed = true;
+  }
+  if (!isfinite(cal.zmctSensitivity) || cal.zmctSensitivity <= 0.0f || cal.zmctSensitivity > 1000.0f) {
+    cal.zmctSensitivity = 10.0f;
+    changed = true;
+  }
+
+  if (changed) {
+    saveConfig();
+    prefs.putFloat("calPH7", cal.ph7);
+    prefs.putFloat("calPH4", cal.ph4);
+    prefs.putFloat("calTDS", cal.tds_k);
+    prefs.putFloat("zmctOffset", cal.zmctOffset);
+    prefs.putFloat("zmctSens", cal.zmctSensitivity);
+    Serial.println("Invalid config/calibration detected -> restored safe defaults");
+  }
+}
+
+String jsonFloatOrNull(float value, int decimals) {
+  if (!isfinite(value)) {
+    return "null";
+  }
+  return String(value, decimals);
 }
 
 void ledPatternControl() {
@@ -820,6 +1065,8 @@ void loadConfig() {
   autoLoopEnabled = prefs.getBool("autoLoop", true);
   autoTDSEnabled = prefs.getBool("autoTDS", true);
   autoPHEnabled = prefs.getBool("autoPH", true);
+
+  validateLoadedConfig();
 }
 
 void saveConfig() {
@@ -986,7 +1233,8 @@ void handleManualControl() {
   } else if (server.method() == HTTP_POST) {
     if (server.hasArg("pump")) {
       manualPump = server.arg("pump") == "1";
-      setRelay(PIN_RELAY_PUMP, manualPump);
+      loopCommandedOn = manualPump;
+      commandPumpRelay(manualPump);
       Serial.printf("Manual Pump: %d\n", manualPump);
     }
     if (server.hasArg("a")) {
@@ -1022,7 +1270,7 @@ void handleManualControl() {
 
 void handleSensorData() {
   // Trạng thái thực tế của bơm tuần hoàn
-  bool pumpActualState = manualControl ? manualPump : loopOn;
+  bool pumpActualState = pumpRelayCommandOn;
   
   // Tính thời gian còn lại cho bơm tuần hoàn (ms)
   struct tm timeinfo;
@@ -1055,12 +1303,12 @@ void handleSensorData() {
   }
   
   String json = "{";
-  json += "\"temp\":" + String(tempC, 1) + ",";
-  json += "\"ph\":" + String(phVal, 2) + ",";
-  json += "\"tds\":" + String(tdsVal, 0) + ",";
-  json += "\"current\":" + String(acCurrent, 2) + ",";
-  json += "\"power\":" + String(acPower, 1) + ",";
-  json += "\"energy\":" + String(energyKwh, 3) + ",";
+  json += "\"temp\":" + jsonFloatOrNull(tempC, 1) + ",";
+  json += "\"ph\":" + jsonFloatOrNull(phVal, 2) + ",";
+  json += "\"tds\":" + jsonFloatOrNull(tdsVal, 0) + ",";
+  json += "\"current\":" + jsonFloatOrNull(acCurrent, 2) + ",";
+  json += "\"power\":" + jsonFloatOrNull(acPower, 1) + ",";
+  json += "\"energy\":" + jsonFloatOrNull(energyKwh, 3) + ",";
   json += "\"pump\":" + String(pumpActualState ? 1 : 0) + ",";
   json += "\"loopOn\":" + String(loopOn ? 1 : 0) + ",";
   json += "\"loopRemainMs\":" + String(loopRemainMs) + ",";
@@ -1082,6 +1330,26 @@ void handleSensorData() {
   json += "\"phTarget\":" + String(phCfg.target, 2) + ",";
   json += "\"phHyst\":" + String(phCfg.hyst, 2);
   
+  json += "}";
+  sendJSON(json);
+}
+
+void handleDiagData() {
+  String json = "{";
+  json += "\"uptimeMs\":" + String(millis()) + ",";
+  json += "\"resetReason\":\"" + jsonEscape(lastResetReasonText) + "\",";
+  json += "\"wifiConnected\":" + String(wifiConnected ? 1 : 0) + ",";
+  json += "\"sensorFaultLatched\":" + String(sensorFaultLatched ? 1 : 0) + ",";
+  json += "\"sensorFaultReason\":\"" + jsonEscape(lastSensorFaultReason) + "\",";
+  json += "\"loopCommandedOn\":" + String(loopCommandedOn ? 1 : 0) + ",";
+  json += "\"pumpRelayCommandOn\":" + String(pumpRelayCommandOn ? 1 : 0) + ",";
+  json += "\"bootCount\":" + String(diagCounters.bootCount) + ",";
+  json += "\"powerOnCount\":" + String(diagCounters.powerOnCount) + ",";
+  json += "\"brownoutCount\":" + String(diagCounters.brownoutCount) + ",";
+  json += "\"wdtCount\":" + String(diagCounters.wdtCount) + ",";
+  json += "\"sensorFaultCount\":" + String(diagCounters.sensorFaultCount) + ",";
+  json += "\"diagEventCount\":" + String(diagEventTotal) + ",";
+  json += "\"lastEvent\":\"" + jsonEscape(lastDiagEvent) + "\"";
   json += "}";
   sendJSON(json);
 }
@@ -1116,8 +1384,19 @@ void handleStaticFile(String path) {
 }
 
 void writeLog(String msg) {
-  // Tạm tắt ghi log để tránh LittleFS crash (sẽ bật lại sau khi format/upload fs)
-  if (!fsReady) return;
+  char entry[DIAG_EVENT_LEN];
+  snprintf(entry, sizeof(entry), "%lu,%s", millis(), msg.c_str());
+
+  size_t slot = diagEventWriteIndex % DIAG_EVENT_CAPACITY;
+  snprintf(diagEvents[slot], sizeof(diagEvents[slot]), "%s", entry);
+  snprintf(lastDiagEvent, sizeof(lastDiagEvent), "%s", entry);
+
+  diagEventWriteIndex = (diagEventWriteIndex + 1) % DIAG_EVENT_CAPACITY;
+  if (diagEventTotal < DIAG_EVENT_CAPACITY) {
+    diagEventTotal++;
+  }
+
+  Serial.println(entry);
 }
 
 String generateConfigPage() {

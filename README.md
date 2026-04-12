@@ -37,6 +37,14 @@
 ### ESP32 & Power
 - ESP32 DevKit (240MHz, 4MB Flash)
 - Nguồn 3.3V cho ESP32 (không dùng VIN)
+- Relay module dùng nguồn 5V riêng, ESP32 chỉ xuất GPIO + GND chung
+- GND chung kiểu sao giữa ESP32 / relay / sensor
+- Thêm tụ lọc khuyến nghị:
+  - 12V bus: `1000µF + 0.1µF`
+  - 5V relay: `470µF + 0.1µF`
+  - sát chân 3V3 ESP32: `100µF + 0.1µF`
+- Không cắm USB có cấp VBUS đồng thời với nguồn 3.3V ngoài trong vận hành thường xuyên
+- Nếu cần debug lâu dài khi đang cấp 3.3V ngoài, dùng cáp data-only / cắt VBUS
 - GND chung cho toàn hệ thống
 
 ### Sensors
@@ -212,6 +220,7 @@ Thay vì đo DC midpoint, hệ thống:
 - `GET /calibration` - Calibration page
 - `GET /manual` - Manual control page
 - `GET /api/sensor` - JSON sensor data
+- `GET /api/diag` - JSON chẩn đoán runtime: reset reason, WiFi, sensor fault latch, relay command, counters
 - `GET /api/config` - JSON configuration
 - `POST /config` - Save configuration
 - `POST /calibration` - Calibration actions
