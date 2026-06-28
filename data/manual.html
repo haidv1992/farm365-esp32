@@ -123,52 +123,10 @@
         let pumpStates = [false, false, false, false]; // pump, A, B, downpH
         const pumpNames = ['pump', 'a', 'b', 'downph'];
 
-        function switchMode(mode) {
-            currentMode = mode;
-            document.getElementById('btnAuto').classList.remove('mode-active');
-            document.getElementById('btnManual').classList.remove('mode-active');
-            
-            if (mode === 'auto') {
-                document.getElementById('btnAuto').classList.add('mode-active');
-                document.getElementById('autoMode').style.display = 'block';
-                document.getElementById('manualMode').style.display = 'none';
-                
-                // Switch to auto mode via API
-                const autoForm = new FormData();
-                autoForm.append('auto', '1');
-                fetch('/manual', {
-                    method: 'POST',
-                    body: autoForm
-                }).then(() => {
-                    console.log('Switched to AUTO mode');
-                });
-            } else {
-                document.getElementById('btnManual').classList.add('mode-active');
-                document.getElementById('autoMode').style.display = 'none';
-                document.getElementById('manualMode').style.display = 'block';
-                
-                // Switch to manual mode via API
-                const manualForm = new FormData();
-                manualForm.append('manual', '1');
-                fetch('/manual', {
-                    method: 'POST',
-                    body: manualForm
-                }).then(() => {
-                    console.log('Switched to MANUAL mode');
-                });
-            }
-        }
-
-        function togglePump(index) {
-            if (currentMode !== 'manual') return;
-            
-            pumpStates[index] = !pumpStates[index];
-            const state = pumpStates[index];
-            
-            // Update UI
+        function updatePumpUI(index, state) {
             const btn = document.getElementById('toggle' + index);
             const status = document.getElementById('status' + index);
-            
+
             if (state) {
                 btn.classList.remove('pump-off');
                 btn.classList.add('pump-on');
@@ -178,6 +136,53 @@
                 btn.classList.add('pump-off');
                 status.textContent = 'TẮT';
             }
+        }
+
+        function switchMode(mode, sendCommand = true) {
+            currentMode = mode;
+            document.getElementById('btnAuto').classList.remove('mode-active');
+            document.getElementById('btnManual').classList.remove('mode-active');
+            
+            if (mode === 'auto') {
+                document.getElementById('btnAuto').classList.add('mode-active');
+                document.getElementById('autoMode').style.display = 'block';
+                document.getElementById('manualMode').style.display = 'none';
+                
+                if (sendCommand) {
+                    const autoForm = new FormData();
+                    autoForm.append('auto', '1');
+                    fetch('/manual', {
+                        method: 'POST',
+                        body: autoForm
+                    }).then(() => {
+                        console.log('Switched to AUTO mode');
+                    });
+                }
+            } else {
+                document.getElementById('btnManual').classList.add('mode-active');
+                document.getElementById('autoMode').style.display = 'none';
+                document.getElementById('manualMode').style.display = 'block';
+                
+                if (sendCommand) {
+                    const manualForm = new FormData();
+                    manualForm.append('manual', '1');
+                    fetch('/manual', {
+                        method: 'POST',
+                        body: manualForm
+                    }).then(() => {
+                        console.log('Switched to MANUAL mode');
+                    });
+                }
+            }
+        }
+
+        function togglePump(index) {
+            if (currentMode !== 'manual') return;
+            
+            pumpStates[index] = !pumpStates[index];
+            const state = pumpStates[index];
+            
+            updatePumpUI(index, state);
             
             // Send command to ESP32
             const formData = new FormData();
@@ -192,12 +197,28 @@
             });
         }
 
-        // Initialize mode
-        switchMode('auto');
+        function loadCurrentState() {
+            fetch('/api/sensor')
+                .then(response => response.json())
+                .then(data => {
+                    switchMode(data.manualMode === 1 ? 'manual' : 'auto', false);
+                    pumpStates = [
+                        data.manualPump === 1 || data.pump === 1,
+                        data.manualA === 1,
+                        data.manualB === 1,
+                        data.manualDownpH === 1
+                    ];
+                    pumpStates.forEach((state, index) => updatePumpUI(index, state));
+                })
+                .catch(() => {
+                    switchMode('auto', false);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadCurrentState);
     </script>
 </body>
 </html>
-
 
 
 

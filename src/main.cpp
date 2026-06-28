@@ -150,8 +150,16 @@ size_t diagEventTotal = 0;
 
 // WiFi reconnect
 unsigned long lastWiFiCheck = 0;
-constexpr unsigned long WIFI_CHECK_INTERVAL = 30000; // Check mỗi 30 giây
-constexpr unsigned long WIFI_RECONNECT_TIMEOUT = 15000; // Timeout reconnect 15s
+unsigned long lastWiFiReconnectAttempt = 0;
+bool wifiReconnectAttemptedSinceLoss = false;
+constexpr unsigned long WIFI_CHECK_INTERVAL = 30000; // Check status every 30s when connected
+constexpr unsigned long WIFI_RETRY_INTERVAL = 600000; // Retry every 10 minutes when WiFi is down
+constexpr unsigned long WIFI_RECONNECT_TIMEOUT = 5000; // Keep reconnect attempts short
+
+// Emergency circulation recovery
+constexpr unsigned long EMERGENCY_RUN_MS = 30UL * 60UL * 1000UL;
+bool emergencyMode = false;
+unsigned long emergencyUntilMs = 0;
 
 // Watchdog
 constexpr uint32_t WDT_TIMEOUT = 120; // 120 giây (đủ thời gian cho cả chu kỳ bơm dài nhất)
@@ -195,6 +203,12 @@ String generateConfigPage();
 String generateCalibrationPage();
 String generateManualPage();
 void commandPumpRelay(bool on);
+void applyStartupPumpPolicy();
+void startAutoLoopFailSafeAtBoot();
+void startEmergencyCirculationRun();
+bool isRecoveryResetReason(esp_reset_reason_t reason);
+unsigned long emergencyRemainingMs();
+void saveManualRescueState();
 const char* resetReasonToString(esp_reset_reason_t reason);
 void loadDiagCounters();
 void recordBootDiagnostics();
@@ -253,6 +267,8 @@ void setup() {
   esp_task_wdt_init(WDT_TIMEOUT, true);  // true = enable panic so ESP32 can reboot
   esp_task_wdt_add(NULL);  // Add current task to WDT
   Serial.println("Watchdog enabled - system will auto-reset if frozen");
+
+  applyStartupPumpPolicy();
   
   // Initialize WiFi
   WiFi.mode(WIFI_STA);
@@ -260,7 +276,7 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   
   unsigned long wifiTimeout = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimeout < 10000)) {
+  while (WiFi.status() != WL_CONNECTED && (millis() - wifiTimeout < WIFI_RECONNECT_TIMEOUT)) {
     delay(500);
     Serial.print(".");
     esp_task_wdt_reset(); // Feed watchdog trong khi đợi WiFi
@@ -336,6 +352,9 @@ void setup() {
     // Toggle auto control settings
     if (server.hasArg("autoLoop")) {
       autoLoopEnabled = server.arg("autoLoop").toInt() == 1;
+      if (!autoLoopEnabled) {
+        emergencyMode = false;
+      }
     }
     if (server.hasArg("autoTDS")) {
       autoTDSEnabled = server.arg("autoTDS").toInt() == 1;
@@ -354,7 +373,7 @@ void setup() {
   Serial.println("Web server started");
   
   // Set LED pattern to OK
-  if (ledPattern != 2) {
+  if (ledPattern != 2 && ledPattern != 4) {
     ledPattern = 1;
   }
   lastLedBlink = millis();
@@ -461,7 +480,22 @@ void loop() {
                                (unsigned long)loopCfg.off_min_day * 60000UL : 
                                (unsigned long)loopCfg.off_min_night * 60000UL;
   
-  if (!manualControl && autoLoopEnabled) {
+  if (!manualControl && emergencyMode && autoLoopEnabled) {
+    if (emergencyRemainingMs() == 0) {
+      emergencyMode = false;
+      loopOn = false;
+      loopCommandedOn = false;
+      tLastLoop = millis();
+      commandPumpRelay(false);
+      ledPattern = 1;
+      writeLog("Emergency circulation run complete - resuming normal schedule");
+    } else {
+      loopOn = true;
+      loopCommandedOn = true;
+      commandPumpRelay(true);
+      ledPattern = 4;
+    }
+  } else if (!manualControl && autoLoopEnabled) {
     // Auto mode: circulation pump với day/night schedule
     if (loopOn) {
       loopCommandedOn = true;
@@ -674,6 +708,77 @@ void commandPumpRelay(bool on) {
   setRelay(PIN_RELAY_PUMP, on);
 }
 
+bool isRecoveryResetReason(esp_reset_reason_t reason) {
+  return reason == ESP_RST_BROWNOUT ||
+         reason == ESP_RST_INT_WDT ||
+         reason == ESP_RST_TASK_WDT ||
+         reason == ESP_RST_WDT;
+}
+
+unsigned long emergencyRemainingMs() {
+  if (!emergencyMode) {
+    return 0;
+  }
+  unsigned long now = millis();
+  if (now >= emergencyUntilMs) {
+    return 0;
+  }
+  return emergencyUntilMs - now;
+}
+
+void saveManualRescueState() {
+  bool rescueActive = manualControl && manualPump;
+  prefs.putBool("manualMode", rescueActive);
+  prefs.putBool("manualPump", rescueActive);
+}
+
+void applyStartupPumpPolicy() {
+  if (manualControl && manualPump) {
+    loopOn = true;
+    loopCommandedOn = true;
+    tLastLoop = millis();
+    commandPumpRelay(true);
+    ledPattern = 4;
+    writeLog("Manual circulation rescue restored at boot");
+    return;
+  }
+
+  if (!autoLoopEnabled) {
+    return;
+  }
+
+  if (isRecoveryResetReason(lastResetReason)) {
+    startEmergencyCirculationRun();
+    return;
+  }
+
+  startAutoLoopFailSafeAtBoot();
+}
+
+void startAutoLoopFailSafeAtBoot() {
+  if (!autoLoopEnabled) {
+    return;
+  }
+
+  loopOn = true;
+  loopCommandedOn = true;
+  tLastLoop = millis();
+  commandPumpRelay(true);
+  ledPattern = 4;
+  writeLog("Circulation pump ON at boot fail-safe");
+}
+
+void startEmergencyCirculationRun() {
+  emergencyMode = true;
+  emergencyUntilMs = millis() + EMERGENCY_RUN_MS;
+  loopOn = true;
+  loopCommandedOn = true;
+  tLastLoop = millis();
+  commandPumpRelay(true);
+  ledPattern = 4;
+  writeLog(String("Emergency circulation run started after ") + lastResetReasonText);
+}
+
 // Non-blocking dose pump - returns true if started, false if limit reached
 bool startDosePump(uint8_t pin, uint16_t ms, uint32_t &accum, uint32_t limit, unsigned long &lastDoseTime) {
   if (activeDosing.active) {
@@ -793,10 +898,12 @@ void updateSensorHealth() {
                " ph=" + String(phVal, 2) +
                " tds=" + String(tdsVal, 0));
     }
-  } else if (sensorFaultLatched && sensorGoodStreak >= SENSOR_GOOD_CLEAR_COUNT) {
-    sensorFaultLatched = false;
+  } else if (sensorGoodStreak >= SENSOR_GOOD_CLEAR_COUNT) {
+    if (sensorFaultLatched) {
+      sensorFaultLatched = false;
+      writeLog("Sensor fault cleared after stable readings");
+    }
     snprintf(lastSensorFaultReason, sizeof(lastSensorFaultReason), "%s", "none");
-    writeLog("Sensor fault cleared after stable readings");
   }
 }
 
@@ -967,18 +1074,16 @@ void ledPatternControl() {
 // ===== CRITICAL: WiFi Reconnect Function =====
 void checkWiFiAndReconnect() {
   unsigned long now = millis();
-  
-  // Chỉ check mỗi 30s để tránh overhead
-  if (now - lastWiFiCheck < WIFI_CHECK_INTERVAL) {
+
+  if (wifiConnected && now - lastWiFiCheck < WIFI_CHECK_INTERVAL) {
     return;
   }
   lastWiFiCheck = now;
-  
-  // Kiểm tra trạng thái WiFi
+
   if (WiFi.status() == WL_CONNECTED) {
     if (!wifiConnected) {
-      // Vừa mới kết nối lại thành công
       wifiConnected = true;
+      wifiReconnectAttemptedSinceLoss = false;
       Serial.println("✅ WiFi reconnected!");
       Serial.print("IP address: ");
       Serial.println(WiFi.localIP());
@@ -991,46 +1096,59 @@ void checkWiFiAndReconnect() {
       }
       writeLog("WiFi reconnected");
     }
+    wifiReconnectAttemptedSinceLoss = false;
+    return;
+  }
+
+  if (wifiConnected) {
+    wifiConnected = false;
+    wifiReconnectAttemptedSinceLoss = false;
+    lastWiFiReconnectAttempt = 0;
+    Serial.println("WiFi disconnected! Attempting reconnect...");
+    Serial.println("CRITICAL: Pump continues working WITHOUT WiFi!");
+    writeLog("WiFi disconnected");
+    ledPattern = 5; // Reconnecting pattern
+  }
+
+  bool shouldAttemptReconnect = !wifiReconnectAttemptedSinceLoss ||
+                                (now - lastWiFiReconnectAttempt >= WIFI_RETRY_INTERVAL);
+  if (!shouldAttemptReconnect) {
+    if (ledPattern != 3 && ledPattern != 4) {
+      ledPattern = 2;
+    }
+    return;
+  }
+
+  wifiReconnectAttemptedSinceLoss = true;
+  lastWiFiReconnectAttempt = now;
+
+  Serial.println("Reconnecting WiFi...");
+  WiFi.disconnect();
+  delay(100);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  unsigned long startReconnect = millis();
+  while (WiFi.status() != WL_CONNECTED &&
+         (millis() - startReconnect < WIFI_RECONNECT_TIMEOUT)) {
+    delay(500);
+    Serial.print(".");
+    esp_task_wdt_reset();
+  }
+  Serial.println();
+
+  if (WiFi.status() == WL_CONNECTED) {
+    wifiConnected = true;
+    wifiReconnectAttemptedSinceLoss = false;
+    Serial.println("✅ WiFi reconnected successfully!");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    ledPattern = 1;
+    configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+    writeLog("WiFi reconnected");
   } else {
-    // Mất kết nối WiFi
-    if (wifiConnected) {
-      wifiConnected = false;
-      Serial.println("⚠️ WiFi disconnected! Attempting reconnect...");
-      Serial.println("⚠️ CRITICAL: Pump continues working WITHOUT WiFi!");
-      writeLog("WiFi disconnected");
-      ledPattern = 5; // Reconnecting pattern
-    }
-    
-    // Thử reconnect (không blocking)
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("Reconnecting WiFi...");
-      WiFi.disconnect();
-      delay(100);
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
-      
-      // Đợi tối đa 15s (với watchdog feed)
-      unsigned long startReconnect = millis();
-      while (WiFi.status() != WL_CONNECTED && 
-             (millis() - startReconnect < WIFI_RECONNECT_TIMEOUT)) {
-        delay(500);
-        Serial.print(".");
-        esp_task_wdt_reset(); // Feed watchdog trong khi reconnect
-      }
-      Serial.println();
-      
-      if (WiFi.status() == WL_CONNECTED) {
-        wifiConnected = true;
-        Serial.println("✅ WiFi reconnected successfully!");
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
-        ledPattern = 1;
-        writeLog("WiFi reconnected");
-      } else {
-        Serial.println("❌ WiFi reconnect failed - will retry in 30s");
-        Serial.println("⚠️ PUMP STILL WORKING - System is SAFE!");
-        ledPattern = 2; // WiFi error
-      }
-    }
+    Serial.println("WiFi reconnect failed - will retry in 10 minutes");
+    Serial.println("PUMP STILL WORKING - System is SAFE!");
+    ledPattern = 2; // WiFi error
   }
 }
 
@@ -1065,6 +1183,15 @@ void loadConfig() {
   autoLoopEnabled = prefs.getBool("autoLoop", true);
   autoTDSEnabled = prefs.getBool("autoTDS", true);
   autoPHEnabled = prefs.getBool("autoPH", true);
+
+  manualControl = prefs.getBool("manualMode", false);
+  manualPump = prefs.getBool("manualPump", false);
+  if (!manualPump) {
+    manualControl = false;
+  }
+  manualA = false;
+  manualB = false;
+  manualDownpH = false;
 
   validateLoadedConfig();
 }
@@ -1231,11 +1358,13 @@ void handleManualControl() {
     }
     server.send(200, "text/html", html);
   } else if (server.method() == HTTP_POST) {
+    bool manualRescueTouched = false;
     if (server.hasArg("pump")) {
       manualPump = server.arg("pump") == "1";
       loopCommandedOn = manualPump;
       commandPumpRelay(manualPump);
       Serial.printf("Manual Pump: %d\n", manualPump);
+      manualRescueTouched = true;
     }
     if (server.hasArg("a")) {
       manualA = server.arg("a") == "1";
@@ -1255,14 +1384,27 @@ void handleManualControl() {
     if (server.hasArg("auto")) {
       manualControl = server.arg("auto") == "0";
       if (!manualControl) {
+        manualPump = false;
+        emergencyMode = false;
         writeLog("Switched to AUTO mode");
       }
+      manualRescueTouched = true;
     }
     if (server.hasArg("manual")) {
       manualControl = server.arg("manual") == "1";
       if (manualControl) {
+        if (!server.hasArg("pump")) {
+          manualPump = pumpRelayCommandOn;
+        }
+        emergencyMode = false;
         writeLog("Switched to MANUAL mode - All controls now direct");
+      } else {
+        manualPump = false;
       }
+      manualRescueTouched = true;
+    }
+    if (manualRescueTouched) {
+      saveManualRescueState();
     }
     sendJSON("{\"status\":\"ok\"}");
   }
@@ -1292,7 +1434,9 @@ void handleSensorData() {
                                (unsigned long)loopCfg.off_min_night * 60000UL;
   
   unsigned long loopRemainMs = 0;
-  if (loopOn) {
+  if (emergencyMode && !manualControl) {
+    loopRemainMs = emergencyRemainingMs();
+  } else if (loopOn) {
     // Đang ON → thời gian còn lại cho ON
     unsigned long elapsed = millis() - tLastLoop;
     loopRemainMs = (elapsed < onMs) ? (onMs - elapsed) : 0;
@@ -1314,6 +1458,9 @@ void handleSensorData() {
   json += "\"loopRemainMs\":" + String(loopRemainMs) + ",";
   json += "\"manualMode\":" + String(manualControl ? 1 : 0) + ",";
   json += "\"manualPump\":" + String(manualPump ? 1 : 0) + ",";
+  json += "\"manualA\":" + String(manualA ? 1 : 0) + ",";
+  json += "\"manualB\":" + String(manualB ? 1 : 0) + ",";
+  json += "\"manualDownpH\":" + String(manualDownpH ? 1 : 0) + ",";
   
   // Thêm trạng thái TDS và pH
   json += "\"tdsDosing\":" + String(tdsDosing ? 1 : 0) + ",";
@@ -1343,6 +1490,9 @@ void handleDiagData() {
   json += "\"sensorFaultReason\":\"" + jsonEscape(lastSensorFaultReason) + "\",";
   json += "\"loopCommandedOn\":" + String(loopCommandedOn ? 1 : 0) + ",";
   json += "\"pumpRelayCommandOn\":" + String(pumpRelayCommandOn ? 1 : 0) + ",";
+  json += "\"emergencyMode\":" + String(emergencyMode ? 1 : 0) + ",";
+  json += "\"emergencyRemainMs\":" + String(emergencyRemainingMs()) + ",";
+  json += "\"wifiRetryIntervalMs\":" + String(WIFI_RETRY_INTERVAL) + ",";
   json += "\"bootCount\":" + String(diagCounters.bootCount) + ",";
   json += "\"powerOnCount\":" + String(diagCounters.powerOnCount) + ",";
   json += "\"brownoutCount\":" + String(diagCounters.brownoutCount) + ",";
