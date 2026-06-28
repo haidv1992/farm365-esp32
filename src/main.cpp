@@ -158,8 +158,11 @@ constexpr unsigned long WIFI_RECONNECT_TIMEOUT = 5000; // Keep reconnect attempt
 
 // Emergency circulation recovery
 constexpr unsigned long EMERGENCY_RUN_MS = 30UL * 60UL * 1000UL;
+constexpr unsigned long BROWNOUT_STABILIZE_MS = 60UL * 1000UL;
 bool emergencyMode = false;
 unsigned long emergencyUntilMs = 0;
+bool brownoutHoldoffMode = false;
+unsigned long brownoutHoldoffUntilMs = 0;
 
 // Watchdog
 constexpr uint32_t WDT_TIMEOUT = 120; // 120 giây (đủ thời gian cho cả chu kỳ bơm dài nhất)
@@ -208,6 +211,8 @@ void startAutoLoopFailSafeAtBoot();
 void startEmergencyCirculationRun();
 bool isRecoveryResetReason(esp_reset_reason_t reason);
 unsigned long emergencyRemainingMs();
+void startBrownoutHoldoff();
+unsigned long brownoutHoldoffRemainingMs();
 void saveManualRescueState();
 const char* resetReasonToString(esp_reset_reason_t reason);
 void loadDiagCounters();
@@ -473,7 +478,28 @@ void loop() {
                                (unsigned long)loopCfg.off_min_day * 60000UL : 
                                (unsigned long)loopCfg.off_min_night * 60000UL;
   
-  if (!manualControl && emergencyMode && autoLoopEnabled) {
+  if (brownoutHoldoffMode) {
+    if (brownoutHoldoffRemainingMs() == 0) {
+      brownoutHoldoffMode = false;
+      if (manualControl && manualPump) {
+        loopOn = true;
+        loopCommandedOn = true;
+        tLastLoop = millis();
+        commandPumpRelay(true);
+        ledPattern = 4;
+        writeLog("Brownout holdoff complete - manual rescue restored");
+      } else if (autoLoopEnabled) {
+        startEmergencyCirculationRun();
+      }
+    } else {
+      loopOn = false;
+      loopCommandedOn = false;
+      commandPumpRelay(false);
+      if (ledPattern != 3) {
+        ledPattern = 2;
+      }
+    }
+  } else if (!manualControl && emergencyMode && autoLoopEnabled) {
     if (emergencyRemainingMs() == 0) {
       emergencyMode = false;
       loopOn = false;
@@ -702,8 +728,7 @@ void commandPumpRelay(bool on) {
 }
 
 bool isRecoveryResetReason(esp_reset_reason_t reason) {
-  return reason == ESP_RST_BROWNOUT ||
-         reason == ESP_RST_INT_WDT ||
+  return reason == ESP_RST_INT_WDT ||
          reason == ESP_RST_TASK_WDT ||
          reason == ESP_RST_WDT;
 }
@@ -719,6 +744,17 @@ unsigned long emergencyRemainingMs() {
   return emergencyUntilMs - now;
 }
 
+unsigned long brownoutHoldoffRemainingMs() {
+  if (!brownoutHoldoffMode) {
+    return 0;
+  }
+  unsigned long now = millis();
+  if (now >= brownoutHoldoffUntilMs) {
+    return 0;
+  }
+  return brownoutHoldoffUntilMs - now;
+}
+
 void saveManualRescueState() {
   bool rescueActive = manualControl && manualPump;
   prefs.putBool("manualMode", rescueActive);
@@ -726,6 +762,11 @@ void saveManualRescueState() {
 }
 
 void applyStartupPumpPolicy() {
+  if (lastResetReason == ESP_RST_BROWNOUT) {
+    startBrownoutHoldoff();
+    return;
+  }
+
   if (manualControl && manualPump) {
     loopOn = true;
     loopCommandedOn = true;
@@ -746,6 +787,17 @@ void applyStartupPumpPolicy() {
   }
 
   startAutoLoopFailSafeAtBoot();
+}
+
+void startBrownoutHoldoff() {
+  brownoutHoldoffMode = true;
+  brownoutHoldoffUntilMs = millis() + BROWNOUT_STABILIZE_MS;
+  emergencyMode = false;
+  loopOn = false;
+  loopCommandedOn = false;
+  commandPumpRelay(false);
+  ledPattern = 2;
+  writeLog("Brownout holdoff started - pump held OFF until power is stable");
 }
 
 void startAutoLoopFailSafeAtBoot() {
@@ -1354,8 +1406,8 @@ void handleManualControl() {
     bool manualRescueTouched = false;
     if (server.hasArg("pump")) {
       manualPump = server.arg("pump") == "1";
-      loopCommandedOn = manualPump;
-      commandPumpRelay(manualPump);
+      loopCommandedOn = manualPump && !brownoutHoldoffMode;
+      commandPumpRelay(manualPump && !brownoutHoldoffMode);
       Serial.printf("Manual Pump: %d\n", manualPump);
       manualRescueTouched = true;
     }
@@ -1427,7 +1479,9 @@ void handleSensorData() {
                                (unsigned long)loopCfg.off_min_night * 60000UL;
   
   unsigned long loopRemainMs = 0;
-  if (emergencyMode && !manualControl) {
+  if (brownoutHoldoffMode) {
+    loopRemainMs = brownoutHoldoffRemainingMs();
+  } else if (emergencyMode && !manualControl) {
     loopRemainMs = emergencyRemainingMs();
   } else if (loopOn) {
     // Đang ON → thời gian còn lại cho ON
@@ -1483,6 +1537,8 @@ void handleDiagData() {
   json += "\"sensorFaultReason\":\"" + jsonEscape(lastSensorFaultReason) + "\",";
   json += "\"loopCommandedOn\":" + String(loopCommandedOn ? 1 : 0) + ",";
   json += "\"pumpRelayCommandOn\":" + String(pumpRelayCommandOn ? 1 : 0) + ",";
+  json += "\"brownoutHoldoffMode\":" + String(brownoutHoldoffMode ? 1 : 0) + ",";
+  json += "\"brownoutHoldoffRemainMs\":" + String(brownoutHoldoffRemainingMs()) + ",";
   json += "\"emergencyMode\":" + String(emergencyMode ? 1 : 0) + ",";
   json += "\"emergencyRemainMs\":" + String(emergencyRemainingMs()) + ",";
   json += "\"wifiRetryIntervalMs\":" + String(WIFI_RETRY_INTERVAL) + ",";
