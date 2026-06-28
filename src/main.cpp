@@ -272,6 +272,8 @@ void setup() {
   
   // Initialize WiFi
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(true); // Reduce current spikes when running from weak prod power
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.setAutoReconnect(false); // Chúng ta tự quản lý reconnect
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   
@@ -292,16 +294,7 @@ void setup() {
     
     // Configure NTP
     configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov"); // UTC+7 (Vietnam)
-    Serial.println("Waiting for NTP time sync...");
-    delay(1000);
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo, 10000)) { // Wait up to 10 seconds
-      Serial.println("Time synchronized!");
-      Serial.print("Current time: ");
-      Serial.print(asctime(&timeinfo));
-    } else {
-      Serial.println("Failed to get NTP time (will retry in loop)");
-    }
+    Serial.println("NTP sync requested");
   } else {
     wifiConnected = false;
     Serial.println("WiFi connection failed!");
